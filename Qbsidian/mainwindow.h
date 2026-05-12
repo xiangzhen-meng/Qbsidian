@@ -2,6 +2,13 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QString>
+
+class FileExplorerPane;
+class EditorPane;
+class PreviewPane;
+class QSplitter;
+class QTimer;
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -17,7 +24,38 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+protected:
+    void closeEvent(QCloseEvent *event) override;
+
+private slots:
+    void onFileSelected(const QString &absoluteFilePath);
+    void onTextChanged();
+    void onPreviewTimer();
+    void onSave();
+    void onNewNoteRequested(const QString &directory, const QString &baseName);
+    void onNewFolderRequested(const QString &directory, const QString &folderName);
+
 private:
+    void setupUi();
+    void setupStyleSheet();
+    void setupMenuBar();
+    void setupPanes();
+    void connectSignals();
+    QString promptVaultDirectory();
+    void updateTitle();
+    void loadFile(const QString &path);
+    void saveFile();
+
     Ui::MainWindow *ui;
+    QSplitter *m_splitter;
+    FileExplorerPane *m_fileExplorer;
+    EditorPane *m_editor;
+    PreviewPane *m_preview;
+    QTimer *m_previewTimer;
+
+    QString m_currentFilePath;
+    QString m_vaultPath;
+    bool m_isModified;
 };
+
 #endif // MAINWINDOW_H

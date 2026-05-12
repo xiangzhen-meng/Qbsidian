@@ -19,6 +19,22 @@ set(PROJECT_SOURCES
         mainwindow.cpp
         mainwindow.h
         mainwindow.ui
+        fileexplorerpane.cpp
+        fileexplorerpane.h
+        editorpane.cpp
+        editorpane.h
+        previewpane.cpp
+        previewpane.h
+        linenumberarea.cpp
+        linenumberarea.h
+        blockparser.cpp
+        blockparser.h
+        inlineparser.cpp
+        inlineparser.h
+        markdownparser.cpp
+        markdownparser.h
+        renderengine.cpp
+        renderengine.h
         ${TS_FILES}
 )
 
@@ -26,7 +42,6 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(Qbsidian
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
-        blockparser.cpp blockparser.h inlineparser.cpp inlineparser.h markdownparser.cpp markdownparser.h renderengine.cpp renderengine.h
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET Qbsidian APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
