@@ -7,6 +7,7 @@ class InlineParser
 {
 public:
     static QString process(const QString &text);
+    static QString escapeHtml(const QString &text);
 };
 
 #endif // INLINEPARSER_H
