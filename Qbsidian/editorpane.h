@@ -2,6 +2,7 @@
 #define EDITORPANE_H
 
 #include <QPlainTextEdit>
+#include <QColor>
 
 class LineNumberArea;
 
@@ -14,6 +15,7 @@ public:
 
     void lineNumberAreaPaintEvent(QPaintEvent *event);
     int lineNumberAreaWidth();
+    void setThemeColors(const QColor &lineBg, const QColor &lineFg);
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -24,6 +26,8 @@ private slots:
 
 private:
     LineNumberArea *m_lineNumberArea;
+    QColor m_lineBg;
+    QColor m_lineFg;
 };
 
 #endif // EDITORPANE_H

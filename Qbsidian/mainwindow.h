@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QString>
+#include <QColor>
 
 class FileExplorerPane;
 class EditorPane;
@@ -21,6 +22,8 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
+    enum class ThemeMode { Light, Dark };
+
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
@@ -34,10 +37,12 @@ private slots:
     void onSave();
     void onNewNoteRequested(const QString &directory, const QString &baseName);
     void onNewFolderRequested(const QString &directory, const QString &folderName);
+    void toggleTheme();
 
 private:
     void setupUi();
-    void setupStyleSheet();
+    void applyWindowTheme();
+    void applyContentTheme();
     void setupMenuBar();
     void setupPanes();
     void connectSignals();
@@ -45,6 +50,10 @@ private:
     void updateTitle();
     void loadFile(const QString &path);
     void saveFile();
+    void loadThemeSetting();
+    void saveThemeSetting();
+    QString buildLightQss() const;
+    QString buildDarkQss() const;
 
     Ui::MainWindow *ui;
     QSplitter *m_splitter;
@@ -56,6 +65,7 @@ private:
     QString m_currentFilePath;
     QString m_vaultPath;
     bool m_isModified;
+    ThemeMode m_themeMode;
 };
 
 #endif // MAINWINDOW_H

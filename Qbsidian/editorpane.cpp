@@ -5,7 +5,10 @@
 
 EditorPane::EditorPane(QWidget *parent)
     : QPlainTextEdit(parent)
+    , m_lineBg(QColor("#f7f6f3"))
+    , m_lineFg(QColor("#c0bfbc"))
 {
+    setTabStopDistance(fontMetrics().horizontalAdvance(' ') * 2);
     m_lineNumberArea = new LineNumberArea(this);
 
     connect(this, &EditorPane::blockCountChanged,
@@ -14,6 +17,13 @@ EditorPane::EditorPane(QWidget *parent)
             this, &EditorPane::updateLineNumberArea);
 
     updateLineNumberAreaWidth(0);
+}
+
+void EditorPane::setThemeColors(const QColor &lineBg, const QColor &lineFg)
+{
+    m_lineBg = lineBg;
+    m_lineFg = lineFg;
+    m_lineNumberArea->update();
 }
 
 int EditorPane::lineNumberAreaWidth()
@@ -56,7 +66,7 @@ void EditorPane::resizeEvent(QResizeEvent *event)
 void EditorPane::lineNumberAreaPaintEvent(QPaintEvent *event)
 {
     QPainter painter(m_lineNumberArea);
-    painter.fillRect(event->rect(), QColor("#222531"));
+    painter.fillRect(event->rect(), m_lineBg);
 
     QTextBlock block = firstVisibleBlock();
     int blockNumber = block.blockNumber();
@@ -66,7 +76,7 @@ void EditorPane::lineNumberAreaPaintEvent(QPaintEvent *event)
     while (block.isValid() && top <= event->rect().bottom()) {
         if (block.isVisible() && bottom >= event->rect().top()) {
             QString number = QString::number(blockNumber + 1);
-            painter.setPen(QColor("#6c7185"));
+            painter.setPen(m_lineFg);
             painter.drawText(0, top, m_lineNumberArea->width() - 3,
                              fontMetrics().height(),
                              Qt::AlignRight, number);
