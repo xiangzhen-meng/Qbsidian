@@ -1,11 +1,14 @@
 #include "previewpane.h"
 #include "markdownparser.h"
+#include "autohidescrollareafilter.h"
+#include <QScrollBar>
 
 PreviewPane::PreviewPane(QWidget *parent)
     : QTextBrowser(parent)
     , m_darkMode(false)
 {
     setOpenExternalLinks(false);
+    new AutoHideScrollAreaFilter(this, this);
 }
 
 void PreviewPane::setDarkMode(bool dark)
@@ -47,17 +50,17 @@ QString PreviewPane::buildStyleSheet() const
             "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Inter,Ubuntu,sans-serif;font-size:15px;line-height:1.5;color:#222222;background-color:#ffffff;padding:16px;}"
             "h1{font-size:1.7rem;font-weight:600;margin-top:32px;margin-bottom:4px;color:#222222;}"
             "h2{font-size:1.5rem;font-weight:600;margin-top:23px;margin-bottom:8px;color:#222222;border-bottom:2px solid #ebedf0;padding-bottom:2px;}"
-            "h3{font-size:1.2rem;font-weight:600;margin-top:16px;margin-bottom:0;color:#31738b;}"
-            "h4{font-size:1.1rem;font-weight:600;margin-top:16px;margin-bottom:0;color:#a38544;}"
-            "h5{font-size:1.0rem;font-weight:600;margin-top:16px;margin-bottom:0;color:#be5058;}"
+            "h3{font-size:1.2rem;font-weight:600;margin-top:16px;margin-bottom:0;color:#3875ab;}"
+            "h4{font-size:1.1rem;font-weight:600;margin-top:16px;margin-bottom:0;color:#c0be78;}"
+            "h5{font-size:1.0rem;font-weight:600;margin-top:16px;margin-bottom:0;color:#d4656a;}"
             "h6{font-size:0.9rem;font-weight:600;margin-top:16px;margin-bottom:0;color:#ababab;}"
             "p{margin:4px 0;}"
             "p.md-list-item{margin:3px 0;}"
             ".md-list-marker{color:#ababab;}"
-            "strong{font-weight:600;color:#c88090;}"
-            "em{font-style:italic;color:#c88090;}"
+            "strong{font-weight:600;color:#d8a0b8;}"
+            "em{font-style:italic;color:#d8a0b8;}"
             "code{color:#222222;font-family:'JetBrains Mono','Fira Code',Menlo,SFMono-Regular,Consolas,monospace;font-size:14px;background:#eceef1;padding:3px 6px;border-radius:4px;}"
-            "blockquote{border-left:3px solid #ebedf0;padding:2px 14px;margin:4px 0;color:#3b8860;font-style:italic;background:transparent;}"
+            "blockquote{border-left:3px solid #ebedf0;padding:2px 14px;margin:4px 0;color:#62b97b;font-style:italic;background:transparent;}"
             "hr{height:1px;border:none;background-color:#ebedf0;margin:8px 0;}"
             "table{border-collapse:collapse;width:100%;margin:8px 0;}"
             "th,td{border:1px solid #ebedf0;padding:6px 10px;text-align:left;}"
@@ -74,10 +77,14 @@ QString PreviewPane::buildStyleSheet() const
 
 void PreviewPane::showHtml(const QString &markdown)
 {
+    int savedPos = verticalScrollBar()->value();
+
     QString htmlBody = MarkdownParser::parse(markdown);
     QString fullHtml = QString(
         "<style>%1</style>"
         "<div>%2</div>"
     ).arg(buildStyleSheet(), htmlBody);
     setHtml(fullHtml);
+
+    verticalScrollBar()->setValue(savedPos);
 }

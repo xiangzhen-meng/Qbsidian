@@ -70,24 +70,24 @@ QString MainWindow::buildLightQss() const
         "QSplitter::handle { background-color: #ebedf0; width: 1px; }"
         "QSplitter::handle:hover { background-color: #2e80f2; }"
 
-        "QTreeView { background-color: #f6f7f8; border: none; outline: none; color: #222222; }"
-        "QTreeView::item { padding: 3px 8px; border-radius: 4px; min-height: 24px; }"
+        "QTreeView { background-color: #f6f7f8; border: none; outline: none; color: #222222; selection-background-color: #d4d4d4; selection-color: #222222; }"
+        "QTreeView::item { padding: 3px 6px 3px 4px; border-radius: 4px; min-height: 24px; }"
         "QTreeView::item:hover { background-color: #e2e5e9; }"
         "QTreeView::item:selected { background-color: #d4d4d4; color: #222222; }"
         "QTreeView::branch { background: transparent; }"
 
-        "QPlainTextEdit { background-color: #ffffff; color: #222222; border: none; selection-background-color: rgba(46,128,242,0.18); padding: 12px; }"
+        "QPlainTextEdit { background-color: #ffffff; color: #222222; border: none; font-size: 18px; selection-background-color: rgba(46,128,242,0.18); padding: 20px; }"
         "QPlainTextEdit:focus { border: none; }"
 
-        "QTextBrowser { background-color: #ffffff; color: #222222; border: none; padding: 16px; }"
+        "QTextBrowser { background-color: #ffffff; color: #222222; border: none; font-size: 18px; padding: 20px; }"
 
-        "QScrollBar:vertical { background: #f6f7f8; width: 8px; border: none; }"
-        "QScrollBar::handle:vertical { background: #d4d4d4; border-radius: 4px; min-height: 30px; }"
-        "QScrollBar::handle:vertical:hover { background: #bdbdbd; }"
+        "QScrollBar:vertical { width: 4px; border: none; }"
+        "QScrollBar::handle:vertical { background: rgba(0,0,0,0.12); border-radius: 2px; min-height: 30px; }"
+        "QScrollBar::handle:vertical:hover { background: rgba(0,0,0,0.25); }"
         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
-        "QScrollBar:horizontal { background: #f6f7f8; height: 8px; border: none; }"
-        "QScrollBar::handle:horizontal { background: #d4d4d4; border-radius: 4px; min-width: 30px; }"
-        "QScrollBar::handle:horizontal:hover { background: #bdbdbd; }"
+        "QScrollBar:horizontal { height: 4px; border: none; }"
+        "QScrollBar::handle:horizontal { background: rgba(0,0,0,0.12); border-radius: 2px; min-width: 30px; }"
+        "QScrollBar::handle:horizontal:hover { background: rgba(0,0,0,0.25); }"
         "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }"
 
         "QToolTip { background-color: #f6f7f8; color: #222222; border: 1px solid #d4d4d4; border-radius: 4px; padding: 4px 8px; font-size: 12px; }"
@@ -122,24 +122,24 @@ QString MainWindow::buildDarkQss() const
         "QSplitter::handle { background-color: #35393e; width: 1px; }"
         "QSplitter::handle:hover { background-color: #2e80f2; }"
 
-        "QTreeView { background-color: #181c20; border: none; outline: none; color: #dadada; }"
-        "QTreeView::item { padding: 3px 8px; border-radius: 4px; min-height: 24px; }"
+        "QTreeView { background-color: #181c20; border: none; outline: none; color: #dadada; selection-background-color: #3f3f3f; selection-color: #dadada; }"
+        "QTreeView::item { padding: 3px 6px 3px 4px; border-radius: 4px; min-height: 24px; }"
         "QTreeView::item:hover { background-color: #2c313c; }"
         "QTreeView::item:selected { background-color: #3f3f3f; color: #dadada; }"
         "QTreeView::branch { background: transparent; }"
 
-        "QPlainTextEdit { background-color: #1c2127; color: #dadada; border: none; selection-background-color: rgba(46,128,242,0.25); padding: 12px; }"
+        "QPlainTextEdit { background-color: #1c2127; color: #dadada; border: none; font-size: 18px; selection-background-color: rgba(46,128,242,0.25); padding: 20px; }"
         "QPlainTextEdit:focus { border: none; }"
 
-        "QTextBrowser { background-color: #1c2127; color: #dadada; border: none; padding: 16px; }"
+        "QTextBrowser { background-color: #1c2127; color: #dadada; border: none; font-size: 18px; padding: 20px; }"
 
-        "QScrollBar:vertical { background: #181c20; width: 8px; border: none; }"
-        "QScrollBar::handle:vertical { background: #3f3f3f; border-radius: 4px; min-height: 30px; }"
-        "QScrollBar::handle:vertical:hover { background: #555555; }"
+        "QScrollBar:vertical { width: 4px; border: none; }"
+        "QScrollBar::handle:vertical { background: rgba(255,255,255,0.12); border-radius: 2px; min-height: 30px; }"
+        "QScrollBar::handle:vertical:hover { background: rgba(255,255,255,0.22); }"
         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
-        "QScrollBar:horizontal { background: #181c20; height: 8px; border: none; }"
-        "QScrollBar::handle:horizontal { background: #3f3f3f; border-radius: 4px; min-width: 30px; }"
-        "QScrollBar::handle:horizontal:hover { background: #555555; }"
+        "QScrollBar:horizontal { height: 4px; border: none; }"
+        "QScrollBar::handle:horizontal { background: rgba(255,255,255,0.12); border-radius: 2px; min-width: 30px; }"
+        "QScrollBar::handle:horizontal:hover { background: rgba(255,255,255,0.22); }"
         "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }"
 
         "QToolTip { background-color: #181c20; color: #dadada; border: 1px solid #35393e; border-radius: 4px; padding: 4px 8px; font-size: 12px; }"
@@ -166,14 +166,6 @@ void MainWindow::applyContentTheme()
     bool dark = (m_themeMode == ThemeMode::Dark);
     if (m_preview)
         m_preview->setDarkMode(dark);
-
-    if (m_editor) {
-        if (dark) {
-            m_editor->setThemeColors(QColor("#181c20"), QColor("#666666"));
-        } else {
-            m_editor->setThemeColors(QColor("#f6f7f8"), QColor("#bdbdbd"));
-        }
-    }
 
     if (m_preview && m_editor) {
         if (!m_currentFilePath.isEmpty() || !m_editor->toPlainText().isEmpty())
@@ -217,6 +209,7 @@ void MainWindow::setupPanes()
     m_splitter->setStretchFactor(0, 1);
     m_splitter->setStretchFactor(1, 4);
     m_splitter->setStretchFactor(2, 3);
+    m_splitter->setSizes({180, 700, 520});
 }
 
 void MainWindow::setupMenuBar()
