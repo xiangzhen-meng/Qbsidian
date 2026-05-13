@@ -1,105 +1,99 @@
 #include "renderengine.h"
 #include "inlineparser.h"
 
+namespace {
+
+struct ListNode
+{
+    LogicalBlock block;
+    QVector<ListNode> children;
+};
+
+bool isListBlock(const LogicalBlock &block)
+{
+    return block.type == BlockType::UnorderedListItem || block.type == BlockType::OrderedListItem;
+}
+
+QString htmlIndent(int depth)
+{
+    QString indent;
+    for(int i = 0; i < depth * 4; ++i)
+        indent += "&nbsp;";
+    return indent;
+}
+
+QVector<ListNode> buildListTree(const QVector<LogicalBlock> &blocks, int &index, int end, int currentIndent)
+{
+    QVector<ListNode> nodes;
+
+    while(index < end)
+    {
+        int indent = blocks[index].indentLevel;
+        if(indent < currentIndent)
+            break;
+
+        if(indent > currentIndent)
+        {
+            if(!nodes.isEmpty())
+                nodes.last().children = buildListTree(blocks, index, end, indent);
+            else
+                nodes = buildListTree(blocks, index, end, indent);
+            continue;
+        }
+
+        ListNode node;
+        node.block = blocks[index];
+        nodes.push_back(node);
+        ++index;
+    }
+
+    return nodes;
+}
+
+QString renderListTree(const QVector<ListNode> &nodes, int depth)
+{
+    QString html;
+    for(const ListNode &node : nodes)
+    {
+        bool isOrdered = node.block.type == BlockType::OrderedListItem;
+        QString marker = isOrdered ? QString::number(node.block.listNumber) + "." : "&bull;";
+        html += QString("<p class=\"md-list-item\">%1<span class=\"md-list-marker\">%2&nbsp;</span>%3</p>")
+                    .arg(htmlIndent(depth))
+                    .arg(marker)
+                    .arg(InlineParser::process(node.block.content));
+
+        if(!node.children.isEmpty())
+            html += renderListTree(node.children, depth + 1);
+    }
+    return html;
+}
+
+}
+
 QString RenderEngine::render(const QVector<LogicalBlock> &blocks)
 {
     QString html;
 
-    struct RenderFrame
-    {
-        int indent;         // 该层列表的缩进值
-        bool isOrdered;     // true=<ol>, false=<ul>
-        bool itemOpen;      // 当前 <li> 是否已开未关
-    };
-    QVector<RenderFrame> renderStack;
+    auto closeAllLists = []() {};
 
-    auto closeAllLists = [&]()
+    for(int i = 0; i < blocks.size(); ++i)
     {
-        while(!renderStack.isEmpty())
-        {
-            if(renderStack.last().itemOpen)html += "</li>";
-            html += renderStack.last().isOrdered ? "</ol>" : "</ul>";
-            renderStack.pop_back();
-        }
-    };
-
-    for(const LogicalBlock &block : blocks)
-    {
+        const LogicalBlock &block = blocks[i];
         switch(block.type)
         {
             // ==================== 列表 ====================
             case BlockType::UnorderedListItem:
             case BlockType::OrderedListItem:
             {
-                bool isOrdered = (block.type == BlockType::OrderedListItem);
+                int start = i;
+                int end = start;
+                while(end < blocks.size() && isListBlock(blocks[end]))
+                    ++end;
 
-                if(renderStack.isEmpty())
-                {
-                    renderStack.push_back({block.indentLevel, isOrdered, true});
-                    html += isOrdered ? "<ol>" : "<ul>";
-                    html += "<li>";
-                }
-                else if(block.indentLevel > renderStack.last().indent)
-                {
-                    renderStack.push_back({block.indentLevel, isOrdered, true});
-                    html += isOrdered ? "<ol>" : "<ul>";
-                    html += "<li>";
-                }
-                else if(block.indentLevel == renderStack.last().indent)
-                {
-                    // 关上一个 <li>
-                    if(renderStack.last().itemOpen)
-                        html += "</li>";
-
-                    if(renderStack.last().isOrdered != isOrdered)
-                    {
-                        html += renderStack.last().isOrdered ? "</ol>" : "</ul>";
-                        html += isOrdered ? "<ol>" : "<ul>";
-                        renderStack.last().isOrdered = isOrdered;
-                    }
-
-                    html += "<li>";
-                    renderStack.last().itemOpen = true;
-                }
-                else
-                {
-                    // 循环弹出更深的层级
-                    while(!renderStack.isEmpty() && block.indentLevel < renderStack.last().indent)
-                    {
-                        if(renderStack.last().itemOpen)
-                            html += "</li>";
-                        html += renderStack.last().isOrdered ? "</ol>" : "</ul>";
-                        renderStack.pop_back();
-                    }
-
-                    if(renderStack.isEmpty())
-                    {
-                        // 全部弹光，开新列表
-                        renderStack.push_back({block.indentLevel, isOrdered, true});
-                        html += isOrdered ? "<ol>" : "<ul>";
-                        html += "<li>";
-                    }
-                    else if(block.indentLevel == renderStack.last().indent)
-                    {
-                        // 退到同级
-                        if(renderStack.last().itemOpen)
-                            html += "</li>";
-
-                        // 检查类型切换
-                        if(renderStack.last().isOrdered != isOrdered)
-                        {
-                            html += renderStack.last().isOrdered ? "</ol>" : "</ul>";
-                            html += isOrdered ? "<ol>" : "</ul>";
-                            renderStack.last().isOrdered = isOrdered;
-                        }
-
-                        html += "<li>";
-                        renderStack.last().itemOpen = true;
-                    }
-                }
-
-                // 输出正文
-                html += InlineParser::process(block.content);
+                int treeIndex = start;
+                QVector<ListNode> nodes = buildListTree(blocks, treeIndex, end, blocks[start].indentLevel);
+                html += renderListTree(nodes, 0);
+                i = end - 1;
                 break;
             }
 
@@ -139,7 +133,7 @@ QString RenderEngine::render(const QVector<LogicalBlock> &blocks)
             case BlockType::CodeBlockStart:
             {
                 closeAllLists();
-                html += "<pre><code>";
+                html += "<table class=\"md-code-block\" width=\"100%\"><tr><td><pre>";
                 break;
             }
             case BlockType::CodeBlockLine:
@@ -150,7 +144,7 @@ QString RenderEngine::render(const QVector<LogicalBlock> &blocks)
             }
             case BlockType::CodeBlockEnd:
             {
-                html += "</code></pre>";
+                html += "</pre></td></tr></table>";
                 break;
             }
 

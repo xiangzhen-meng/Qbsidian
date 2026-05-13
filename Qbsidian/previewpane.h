@@ -10,7 +10,13 @@ class PreviewPane : public QTextBrowser
 public:
     explicit PreviewPane(QWidget *parent = nullptr);
 
+    void setDarkMode(bool dark);
     void showHtml(const QString &markdown);
+
+private:
+    QString buildStyleSheet() const;
+
+    bool m_darkMode;
 };
 
 #endif // PREVIEWPANE_H
