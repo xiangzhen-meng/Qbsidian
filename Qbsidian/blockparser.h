@@ -17,7 +17,8 @@ enum class BlockType
     CodeBlockEnd,       // 行首 "```"，退出代码块
     UnorderedListItem,  // 行首 "- " / "* " / "+ "，indentLevel 为前导空格数
     OrderedListItem,    // 行首 "数字. "，indentLevel 同上
-    HorizontalRule      // 单独一行 "---" / "***" / "___"
+    HorizontalRule,      // 单独一行 "---" / "***" / "___"
+    Blockquote          //引用块 ">"
 };
 
 struct LogicalBlock

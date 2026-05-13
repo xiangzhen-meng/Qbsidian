@@ -1,6 +1,7 @@
 #include "markdownparser.h"
 #include "blockparser.h"
 #include "renderengine.h"
+#include "QtDebug"
 
 QString MarkdownParser::parse(const QString &markdown)
 {

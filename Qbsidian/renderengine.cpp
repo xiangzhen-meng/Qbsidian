@@ -161,6 +161,16 @@ QString RenderEngine::render(const QVector<LogicalBlock> &blocks)
                 html += "<hr/>";
                 break;
             }
+            // ==================== 引用块 ====================
+            case BlockType::Blockquote:
+            {
+                closeAllLists();
+                html += "<blockquote>";
+                html += InlineParser::process(block.content) ;
+                html += "</blockquote>\n";
+                break;
+            }
+
         }
     }
 

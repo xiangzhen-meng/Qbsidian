@@ -97,6 +97,7 @@ QVector<LogicalBlock> BlockParser::parseBlocks(const QString &text)
                 paragraphBuffer.clear();
             }
             ans.push_back({BlockType::Heading4,remaining.mid(5).trimmed(),tmp.indentLevel});
+            continue;
         }
         else if(remaining.startsWith("### "))
         {
@@ -106,6 +107,7 @@ QVector<LogicalBlock> BlockParser::parseBlocks(const QString &text)
                 paragraphBuffer.clear();
             }
             ans.push_back({BlockType::Heading3,remaining.mid(4).trimmed(),tmp.indentLevel});
+            continue;
         }
         else if(remaining.startsWith("## "))
         {
@@ -115,6 +117,7 @@ QVector<LogicalBlock> BlockParser::parseBlocks(const QString &text)
                 paragraphBuffer.clear();
             }
             ans.push_back({BlockType::Heading2,remaining.mid(3).trimmed(),tmp.indentLevel});
+            continue;
         }
         else if(remaining.startsWith("# "))
         {
@@ -124,6 +127,7 @@ QVector<LogicalBlock> BlockParser::parseBlocks(const QString &text)
                 paragraphBuffer.clear();
             }
             ans.push_back({BlockType::Heading1,remaining.mid(2).trimmed(),tmp.indentLevel});
+            continue;
         }
 
         //  无序列表判断（- / * / +）
@@ -163,6 +167,17 @@ QVector<LogicalBlock> BlockParser::parseBlocks(const QString &text)
             tmp.type = BlockType::HorizontalRule;
             tmp.content = "";
             ans.push_back(tmp);
+            continue;
+        }
+
+        else if(remaining.startsWith("> "))
+        {
+            if(!paragraphBuffer.isEmpty())
+            {
+                ans.push_back({BlockType::Paragraph, paragraphBuffer, 0});
+                paragraphBuffer.clear();
+            }
+            ans.push_back({BlockType::Blockquote, remaining.mid(2).trimmed(), tmp.indentLevel});
             continue;
         }
 
