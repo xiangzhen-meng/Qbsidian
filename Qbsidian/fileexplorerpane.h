@@ -14,6 +14,7 @@ public:
     explicit FileExplorerPane(QWidget *parent = nullptr);
 
     void setRootPath(const QString &path);
+    QString rootPath() const;
 
 signals:
     void fileSelected(const QString &absoluteFilePath);

@@ -3,7 +3,6 @@
 
 #include <QMainWindow>
 #include <QString>
-#include <QColor>
 
 class FileExplorerPane;
 class EditorPane;

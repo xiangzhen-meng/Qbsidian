@@ -25,8 +25,8 @@ set(PROJECT_SOURCES
         editorpane.h
         previewpane.cpp
         previewpane.h
-        linenumberarea.cpp
-        linenumberarea.h
+        autohidescrollareafilter.cpp
+        autohidescrollareafilter.h
         blockparser.cpp
         blockparser.h
         inlineparser.cpp
