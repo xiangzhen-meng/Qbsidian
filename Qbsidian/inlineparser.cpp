@@ -1,5 +1,7 @@
 #include "inlineparser.h"
 #include <QRegularExpression>
+#include <QRegularExpression>
+#include <QUrl>
 
 QString InlineParser::process(const QString &text)
 {
@@ -14,11 +16,25 @@ QString InlineParser::process(const QString &text)
     // 超链接
     QRegularExpression linkRe("\\[(.*?)\\]\\((.*?)\\)");
     html.replace(linkRe, "<a href=\"\\2\">\\1</a>");
-    QRegularExpression autolinkRe("<(https?://.+?)>");
+    QRegularExpression autolinkRe("&lt;(https?://.+?)&gt;");
     html.replace(autolinkRe, "<a href=\"\\1\">\\1</a>");
     //行内代码块
     QRegularExpression codeRe("`(.+?)`");
     html.replace(codeRe, "<code>\\1</code>");
+    //双向链接
+    QRegularExpression wikiRe("\\[\\[([^|\\]]+)(?:\\|([^\\]]+))?\\]\\]");
+    QRegularExpressionMatch wikiMatch;
+    while ((wikiMatch = wikiRe.match(html)).hasMatch())
+    {
+        QString noteName = wikiMatch.captured(1).trimmed();
+        QString alias = wikiMatch.captured(2).trimmed();
+
+        QString displayText = alias.isEmpty() ? noteName : alias;
+        QString encodedName = QUrl::toPercentEncoding(noteName);
+
+        QString replacement = QString("<a href=\"internal://%1\">%2</a>").arg(encodedName, displayText);
+        html.replace(wikiMatch.capturedStart(0), wikiMatch.capturedLength(0), replacement);
+    }
     //粗体
     QRegularExpression boldRe("\\*\\*(.+?)\\*\\*",QRegularExpression::DotMatchesEverythingOption);
     html.replace(boldRe, "<strong>\\1</strong>");
