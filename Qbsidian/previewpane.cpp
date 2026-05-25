@@ -7,6 +7,7 @@ PreviewPane::PreviewPane(QWidget *parent)
     : QTextBrowser(parent)
     , m_darkMode(false)
 {
+    setOpenLinks(false);
     setOpenExternalLinks(false);
     new AutoHideScrollAreaFilter(this, this);
 }

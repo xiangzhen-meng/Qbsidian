@@ -2,13 +2,17 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QHash>
 #include <QString>
 
 class FileExplorerPane;
 class EditorPane;
 class PreviewPane;
+class NoteManager;
 class QSplitter;
+class QTabWidget;
 class QTimer;
+class QWidget;
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -23,6 +27,20 @@ class MainWindow : public QMainWindow
 public:
     enum class ThemeMode { Light, Dark };
 
+private:
+    struct NoteTab
+    {
+        QWidget *page;
+        QSplitter *splitter;
+        EditorPane *editor;
+        PreviewPane *preview;
+        QTimer *previewTimer;
+        QString filePath;
+        bool isModified;
+    };
+
+public:
+
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
@@ -31,12 +49,16 @@ protected:
 
 private slots:
     void onFileSelected(const QString &absoluteFilePath);
-    void onTextChanged();
-    void onPreviewTimer();
     void onSave();
     void onNewNoteRequested(const QString &directory, const QString &baseName);
     void onNewFolderRequested(const QString &directory, const QString &folderName);
     void toggleTheme();
+    void onNoteManagerError(const QString &operation, const QString &reason);
+    void onDeleteRequested(const QString &absolutePath);
+    void onAnchorClicked(const QUrl &url);
+    void onSearchResultClicked(const QString &filePath, int lineNumber);
+    void onTabCloseRequested(int index);
+    void onCurrentTabChanged(int index);
 
 private:
     void setupUi();
@@ -47,8 +69,13 @@ private:
     void connectSignals();
     QString promptVaultDirectory();
     void updateTitle();
-    void loadFile(const QString &path);
-    void saveFile();
+    bool openFileInTab(const QString &path);
+    bool saveCurrentTab();
+    bool saveTab(NoteTab *tab);
+    void updateTabTitle(NoteTab *tab);
+    NoteTab *currentTab() const;
+    void closeTabAt(int index);
+    void jumpCurrentTabToLine(int lineNumber);
     void loadThemeSetting();
     void saveThemeSetting();
     QString buildLightQss() const;
@@ -57,13 +84,12 @@ private:
     Ui::MainWindow *ui;
     QSplitter *m_splitter;
     FileExplorerPane *m_fileExplorer;
-    EditorPane *m_editor;
-    PreviewPane *m_preview;
-    QTimer *m_previewTimer;
+    QTabWidget *m_tabWidget;
+    NoteManager *m_noteManager;
 
-    QString m_currentFilePath;
+    QHash<QString, NoteTab *> m_tabsByPath;
     QString m_vaultPath;
-    bool m_isModified;
+    bool m_noteManagerHadError;
     ThemeMode m_themeMode;
 };
 

@@ -3,23 +3,31 @@
 #include "fileexplorerpane.h"
 #include "editorpane.h"
 #include "previewpane.h"
+#include "notemanager.h"
 
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QCloseEvent>
 #include <QTimer>
 #include <QSplitter>
-#include <QFile>
+#include <QTabWidget>
+#include <QVBoxLayout>
 #include <QSettings>
+#include <QDesktopServices>
+#include <QTextBlock>
+#include <QTextCursor>
+#include <QSignalBlocker>
+#include <QFileInfo>
+#include <QDir>
+#include <QPushButton>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
     , m_fileExplorer(nullptr)
-    , m_editor(nullptr)
-    , m_preview(nullptr)
-    , m_previewTimer(nullptr)
-    , m_isModified(false)
+    , m_tabWidget(nullptr)
+    , m_noteManager(nullptr)
+    , m_noteManagerHadError(false)
     , m_themeMode(ThemeMode::Light)
 {
     ui->setupUi(this);
@@ -28,6 +36,13 @@ MainWindow::MainWindow(QWidget *parent)
     setupPanes();
     setupMenuBar();
     connectSignals();
+
+    m_noteManager = new NoteManager(this);
+    connect(m_noteManager, &NoteManager::errorOccurred,
+            this, &MainWindow::onNoteManagerError);
+
+    m_fileExplorer->setNoteManager(m_noteManager);
+
     loadThemeSetting();
     applyWindowTheme();
     applyContentTheme();
@@ -36,13 +51,9 @@ MainWindow::MainWindow(QWidget *parent)
     if (!vault.isEmpty()) {
         m_vaultPath = vault;
         m_fileExplorer->setRootPath(m_vaultPath);
-        setWindowTitle("Qbsidian - " + m_vaultPath);
+        m_fileExplorer->setVaultPath(m_vaultPath);
+        setWindowTitle(QString());
     }
-
-    m_previewTimer = new QTimer(this);
-    m_previewTimer->setSingleShot(true);
-    connect(m_previewTimer, &QTimer::timeout, this, &MainWindow::onPreviewTimer);
-
     ui->statusbar->showMessage(tr("就绪"));
 }
 
@@ -164,12 +175,9 @@ void MainWindow::applyWindowTheme()
 void MainWindow::applyContentTheme()
 {
     bool dark = (m_themeMode == ThemeMode::Dark);
-    if (m_preview)
-        m_preview->setDarkMode(dark);
-
-    if (m_preview && m_editor) {
-        if (!m_currentFilePath.isEmpty() || !m_editor->toPlainText().isEmpty())
-            m_preview->showHtml(m_editor->toPlainText());
+    for (NoteTab *tab : m_tabsByPath) {
+        tab->preview->setDarkMode(dark);
+        tab->preview->showHtml(tab->editor->toPlainText());
     }
 }
 
@@ -199,17 +207,17 @@ void MainWindow::setupPanes()
     m_splitter = ui->splitter;
 
     m_fileExplorer = new FileExplorerPane(this);
-    m_editor = new EditorPane(this);
-    m_preview = new PreviewPane(this);
+    m_tabWidget = new QTabWidget(this);
+    m_tabWidget->setTabsClosable(true);
+    m_tabWidget->setMovable(true);
+    m_tabWidget->setDocumentMode(true);
 
     m_splitter->addWidget(m_fileExplorer);
-    m_splitter->addWidget(m_editor);
-    m_splitter->addWidget(m_preview);
+    m_splitter->addWidget(m_tabWidget);
 
     m_splitter->setStretchFactor(0, 1);
-    m_splitter->setStretchFactor(1, 4);
-    m_splitter->setStretchFactor(2, 3);
-    m_splitter->setSizes({180, 700, 520});
+    m_splitter->setStretchFactor(1, 7);
+    m_splitter->setSizes({220, 1200});
 }
 
 void MainWindow::setupMenuBar()
@@ -227,9 +235,15 @@ void MainWindow::connectSignals()
             this, &MainWindow::onNewNoteRequested);
     connect(m_fileExplorer, &FileExplorerPane::newFolderRequested,
             this, &MainWindow::onNewFolderRequested);
+    connect(m_fileExplorer, &FileExplorerPane::deleteRequested,
+            this, &MainWindow::onDeleteRequested);
+    connect(m_fileExplorer, &FileExplorerPane::searchResultClicked,
+            this, &MainWindow::onSearchResultClicked);
 
-    connect(m_editor, &QPlainTextEdit::textChanged,
-            this, &MainWindow::onTextChanged);
+    connect(m_tabWidget, &QTabWidget::tabCloseRequested,
+            this, &MainWindow::onTabCloseRequested);
+    connect(m_tabWidget, &QTabWidget::currentChanged,
+            this, &MainWindow::onCurrentTabChanged);
 
     connect(ui->actionSave, &QAction::triggered,
             this, &MainWindow::onSave);
@@ -237,14 +251,14 @@ void MainWindow::connectSignals()
     connect(ui->actionToggleTheme, &QAction::triggered,
             this, &MainWindow::toggleTheme);
 
-    connect(m_editor, &QPlainTextEdit::undoAvailable,
-            ui->actionUndo, &QAction::setEnabled);
-    connect(m_editor, &QPlainTextEdit::redoAvailable,
-            ui->actionRedo, &QAction::setEnabled);
-    connect(ui->actionUndo, &QAction::triggered,
-            m_editor, &QPlainTextEdit::undo);
-    connect(ui->actionRedo, &QAction::triggered,
-            m_editor, &QPlainTextEdit::redo);
+    connect(ui->actionUndo, &QAction::triggered, this, [this]() {
+        if (NoteTab *tab = currentTab())
+            tab->editor->undo();
+    });
+    connect(ui->actionRedo, &QAction::triggered, this, [this]() {
+        if (NoteTab *tab = currentTab())
+            tab->editor->redo();
+    });
 }
 
 QString MainWindow::promptVaultDirectory()
@@ -257,74 +271,159 @@ QString MainWindow::promptVaultDirectory()
 
 void MainWindow::updateTitle()
 {
-    QString title = "Qbsidian - " + m_vaultPath;
-    if (!m_currentFilePath.isEmpty()) {
-        QFileInfo fi(m_currentFilePath);
-        title = fi.fileName();
-        if (m_isModified)
-            title += " *";
-        title += " - Qbsidian";
-    }
-    setWindowTitle(title);
+    setWindowTitle(QString());
 }
 
-void MainWindow::loadFile(const QString &path)
+MainWindow::NoteTab *MainWindow::currentTab() const
 {
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        ui->statusbar->showMessage(tr("无法打开文件: %1").arg(path));
-        return;
+    QWidget *page = m_tabWidget->currentWidget();
+    if (!page)
+        return nullptr;
+
+    for (NoteTab *tab : m_tabsByPath) {
+        if (tab->page == page)
+            return tab;
     }
-    QByteArray data = file.readAll();
-    QString content = QString::fromUtf8(data);
-    file.close();
+    return nullptr;
+}
 
-    m_currentFilePath = path;
-    m_isModified = false;
+void MainWindow::updateTabTitle(NoteTab *tab)
+{
+    int index = m_tabWidget->indexOf(tab->page);
+    if (index < 0)
+        return;
 
-    m_editor->setPlainText(content);
-    m_preview->showHtml(content);
+    QString title = QFileInfo(tab->filePath).fileName();
+    if (tab->isModified)
+        title += " *";
+    m_tabWidget->setTabText(index, title);
+}
 
+bool MainWindow::openFileInTab(const QString &path)
+{
+    if (m_tabsByPath.contains(path)) {
+        NoteTab *tab = m_tabsByPath.value(path);
+        m_tabWidget->setCurrentWidget(tab->page);
+        updateTitle();
+        return true;
+    }
+
+    m_noteManagerHadError = false;
+    QString content = m_noteManager->load(path);
+    if (m_noteManagerHadError)
+        return false;
+
+    NoteTab *tab = new NoteTab;
+    tab->page = new QWidget(m_tabWidget);
+    tab->splitter = new QSplitter(Qt::Horizontal, tab->page);
+    tab->editor = new EditorPane(tab->splitter);
+    tab->preview = new PreviewPane(tab->splitter);
+    tab->previewTimer = new QTimer(tab->page);
+    tab->filePath = path;
+    tab->isModified = false;
+
+    QVBoxLayout *layout = new QVBoxLayout(tab->page);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(tab->splitter);
+
+    tab->splitter->addWidget(tab->editor);
+    tab->splitter->addWidget(tab->preview);
+    tab->splitter->setStretchFactor(0, 4);
+    tab->splitter->setStretchFactor(1, 3);
+    tab->splitter->setSizes({700, 520});
+
+    tab->preview->setDarkMode(m_themeMode == ThemeMode::Dark);
+    tab->previewTimer->setSingleShot(true);
+
+    {
+        QSignalBlocker blocker(tab->editor);
+        tab->editor->setPlainText(content);
+    }
+    tab->preview->showHtml(content);
+
+    connect(tab->editor, &QPlainTextEdit::textChanged, this, [this, tab]() {
+        tab->isModified = true;
+        updateTabTitle(tab);
+        updateTitle();
+        tab->previewTimer->start(300);
+    });
+    connect(tab->previewTimer, &QTimer::timeout, this, [tab]() {
+        tab->preview->showHtml(tab->editor->toPlainText());
+    });
+    connect(tab->preview, &QTextBrowser::anchorClicked,
+            this, &MainWindow::onAnchorClicked);
+    connect(tab->editor, &QPlainTextEdit::undoAvailable, this, [this, tab](bool available) {
+        if (currentTab() == tab)
+            ui->actionUndo->setEnabled(available);
+    });
+    connect(tab->editor, &QPlainTextEdit::redoAvailable, this, [this, tab](bool available) {
+        if (currentTab() == tab)
+            ui->actionRedo->setEnabled(available);
+    });
+
+    int index = m_tabWidget->addTab(tab->page, QFileInfo(path).fileName());
+    m_tabsByPath.insert(path, tab);
+    m_tabWidget->setCurrentIndex(index);
     updateTitle();
     ui->statusbar->showMessage(tr("已打开: %1").arg(QFileInfo(path).fileName()));
+    return true;
 }
 
-void MainWindow::saveFile()
+bool MainWindow::saveTab(NoteTab *tab)
 {
-    if (m_currentFilePath.isEmpty())
-        return;
+    if (!tab || tab->filePath.isEmpty())
+        return true;
 
-    QFile file(m_currentFilePath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
-        QMessageBox::critical(this, tr("保存失败"), tr("无法写入文件:\n%1").arg(m_currentFilePath));
-        return;
-    }
-    QByteArray data = m_editor->toPlainText().toUtf8();
-    file.write(data);
-    file.close();
+    m_noteManagerHadError = false;
+    if (!m_noteManager->save(tab->filePath, tab->editor->toPlainText()))
+        return false;
 
-    m_isModified = false;
+    tab->isModified = false;
+    updateTabTitle(tab);
     updateTitle();
     ui->statusbar->showMessage(tr("已保存"));
+    return true;
+}
+
+bool MainWindow::saveCurrentTab()
+{
+    return saveTab(currentTab());
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    if (!m_isModified) {
+    bool hasModified = false;
+    for (NoteTab *tab : m_tabsByPath) {
+        if (tab->isModified) {
+            hasModified = true;
+            break;
+        }
+    }
+
+    if (!hasModified) {
         event->accept();
         return;
     }
 
-    QMessageBox::StandardButton btn = QMessageBox::warning(
-        this, tr("未保存的修改"),
-        tr("当前笔记有未保存的修改。\n\n是否保存后退出？"),
-        QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
-        QMessageBox::Save);
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Warning);
+    box.setWindowTitle(tr("未保存的修改"));
+    box.setText(tr("存在未保存的标签页，关闭程序前要如何处理？"));
+    QPushButton *saveAllButton = box.addButton(tr("全部保存"), QMessageBox::AcceptRole);
+    QPushButton *discardAllButton = box.addButton(tr("全部不保存"), QMessageBox::DestructiveRole);
+    box.addButton(tr("取消"), QMessageBox::RejectRole);
+    box.setDefaultButton(saveAllButton);
+    box.exec();
 
-    if (btn == QMessageBox::Save) {
-        saveFile();
+    if (box.clickedButton() == saveAllButton) {
+        for (NoteTab *tab : m_tabsByPath) {
+            if (tab->isModified && !saveTab(tab)) {
+                event->ignore();
+                return;
+            }
+        }
         event->accept();
-    } else if (btn == QMessageBox::Discard) {
+    } else if (box.clickedButton() == discardAllButton) {
         event->accept();
     } else {
         event->ignore();
@@ -333,70 +432,192 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 void MainWindow::onFileSelected(const QString &absoluteFilePath)
 {
-    loadFile(absoluteFilePath);
-}
-
-void MainWindow::onTextChanged()
-{
-    m_isModified = true;
-    updateTitle();
-    m_previewTimer->start(300);
-}
-
-void MainWindow::onPreviewTimer()
-{
-    m_preview->showHtml(m_editor->toPlainText());
+    openFileInTab(absoluteFilePath);
 }
 
 void MainWindow::onSave()
 {
-    saveFile();
+    saveCurrentTab();
+}
+
+void MainWindow::onNoteManagerError(const QString &operation, const QString &reason)
+{
+    m_noteManagerHadError = true;
+    ui->statusbar->showMessage(tr("%1: %2").arg(operation, reason));
 }
 
 void MainWindow::onNewNoteRequested(const QString &directory, const QString &baseName)
 {
-    QFileInfo dirInfo(directory);
-    if (!dirInfo.isDir())
-        return;
-
-    QString name = baseName;
-    QString path = dirInfo.absoluteFilePath() + "/" + name + ".md";
-    int counter = 1;
-    while (QFile::exists(path)) {
-        name = baseName + " (" + QString::number(counter) + ")";
-        path = dirInfo.absoluteFilePath() + "/" + name + ".md";
-        ++counter;
-    }
-
-    QFile file(path);
-    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        file.close();
+    QString path = m_noteManager->createNewNote(directory, baseName);
+    if (!path.isEmpty()) {
         m_fileExplorer->setRootPath(m_vaultPath);
-        ui->statusbar->showMessage(tr("已创建: %1.md").arg(name));
-    } else {
-        ui->statusbar->showMessage(tr("创建失败: %1").arg(name));
+        openFileInTab(path);
+        QFileInfo fi(path);
+        ui->statusbar->showMessage(tr("已创建: %1").arg(fi.fileName()));
     }
 }
 
 void MainWindow::onNewFolderRequested(const QString &directory, const QString &folderName)
 {
-    QFileInfo dirInfo(directory);
-    if (!dirInfo.isDir())
+    QString path = m_noteManager->createNewFolder(directory, folderName);
+    if (!path.isEmpty()) {
+        m_fileExplorer->setRootPath(m_vaultPath);
+        QFileInfo fi(path);
+        ui->statusbar->showMessage(tr("已创建文件夹: %1").arg(fi.fileName()));
+    }
+}
+
+void MainWindow::onDeleteRequested(const QString &absolutePath)
+{
+    QFileInfo info(absolutePath);
+    QString typeName = info.isDir() ? tr("文件夹") : tr("笔记");
+    QString displayName = info.fileName();
+
+    QMessageBox::StandardButton btn = QMessageBox::warning(
+        this, tr("确认删除"),
+        tr("确定要删除%1 \"%2\" 吗？\n\n此操作不可撤销。").arg(typeName, displayName),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No);
+
+    if (btn != QMessageBox::Yes)
         return;
 
-    QString name = folderName;
-    QString path = dirInfo.absoluteFilePath() + "/" + name;
-    int counter = 1;
-    while (QDir(path).exists()) {
-        name = folderName + " (" + QString::number(counter) + ")";
-        path = dirInfo.absoluteFilePath() + "/" + name;
-        ++counter;
+    if (!m_noteManager->deleteItem(absolutePath))
+        return;
+
+    QList<NoteTab *> removedTabs;
+    for (NoteTab *tab : m_tabsByPath) {
+        if (tab->filePath == absolutePath || tab->filePath.startsWith(absolutePath + "/"))
+            removedTabs.append(tab);
+    }
+    for (NoteTab *tab : removedTabs) {
+        int index = m_tabWidget->indexOf(tab->page);
+        if (index >= 0)
+            closeTabAt(index);
     }
 
-    if (QDir().mkpath(path)) {
-        m_fileExplorer->setRootPath(m_vaultPath);
-        ui->statusbar->showMessage(tr("已创建文件夹: %1").arg(name));
-    } else {
-        ui->statusbar->showMessage(tr("创建文件夹失败: %1").arg(name));
+    m_fileExplorer->setRootPath(m_vaultPath);
+    ui->statusbar->showMessage(tr("已删除: %1").arg(displayName));
+}
+
+void MainWindow::onAnchorClicked(const QUrl &url)
+{
+    if (url.scheme() == "http" || url.scheme() == "https") {
+        QDesktopServices::openUrl(url);
+        return;
     }
+
+    if (url.scheme() == "internal") {
+        QString noteName = url.host();
+        QString foundPath = m_noteManager->findNotePath(m_vaultPath, noteName);
+        if (!foundPath.isEmpty()) {
+            openFileInTab(foundPath);
+            return;
+        }
+
+        QMessageBox::StandardButton btn = QMessageBox::question(
+            this, tr("笔记不存在"),
+            tr("笔记 \"%1\" 不存在，是否立即创建？").arg(noteName),
+            QMessageBox::Yes | QMessageBox::No,
+            QMessageBox::Yes);
+
+        if (btn == QMessageBox::Yes) {
+            QString newPath = m_noteManager->createNewNote(m_vaultPath, noteName);
+            if (!newPath.isEmpty()) {
+                m_fileExplorer->setRootPath(m_vaultPath);
+                openFileInTab(newPath);
+            }
+        }
+        return;
+    }
+}
+
+void MainWindow::onSearchResultClicked(const QString &filePath, int lineNumber)
+{
+    if (!openFileInTab(filePath))
+        return;
+
+    jumpCurrentTabToLine(lineNumber);
+}
+
+void MainWindow::jumpCurrentTabToLine(int lineNumber)
+{
+    NoteTab *tab = currentTab();
+    if (!tab)
+        return;
+
+    if (lineNumber <= 1)
+        return;
+
+    QTextBlock block = tab->editor->document()->findBlockByNumber(lineNumber - 1);
+    if (!block.isValid())
+        return;
+
+    QTextCursor cursor(block);
+    tab->editor->setTextCursor(cursor);
+    tab->editor->centerCursor();
+}
+
+void MainWindow::onTabCloseRequested(int index)
+{
+    NoteTab *tab = nullptr;
+    QWidget *page = m_tabWidget->widget(index);
+    for (NoteTab *candidate : m_tabsByPath) {
+        if (candidate->page == page) {
+            tab = candidate;
+            break;
+        }
+    }
+    if (!tab)
+        return;
+
+    if (tab->isModified) {
+        QMessageBox::StandardButton btn = QMessageBox::warning(
+            this, tr("未保存的修改"),
+            tr("标签页 \"%1\" 有未保存的修改。\n\n是否保存后关闭？")
+                .arg(QFileInfo(tab->filePath).fileName()),
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+            QMessageBox::Save);
+
+        if (btn == QMessageBox::Save) {
+            if (!saveTab(tab))
+                return;
+        } else if (btn == QMessageBox::Cancel) {
+            return;
+        }
+    }
+
+    closeTabAt(index);
+}
+
+void MainWindow::closeTabAt(int index)
+{
+    QWidget *page = m_tabWidget->widget(index);
+    if (!page)
+        return;
+
+    NoteTab *tab = nullptr;
+    for (NoteTab *candidate : m_tabsByPath) {
+        if (candidate->page == page) {
+            tab = candidate;
+            break;
+        }
+    }
+    if (!tab)
+        return;
+
+    m_tabsByPath.remove(tab->filePath);
+    m_tabWidget->removeTab(index);
+    delete tab->page;
+    delete tab;
+    updateTitle();
+}
+
+void MainWindow::onCurrentTabChanged(int index)
+{
+    Q_UNUSED(index)
+    NoteTab *tab = currentTab();
+    ui->actionUndo->setEnabled(tab && tab->editor->document()->isUndoAvailable());
+    ui->actionRedo->setEnabled(tab && tab->editor->document()->isRedoAvailable());
+    updateTitle();
 }
