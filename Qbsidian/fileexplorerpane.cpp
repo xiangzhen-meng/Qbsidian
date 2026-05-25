@@ -10,6 +10,15 @@
 #include <QStyle>
 #include <QFileInfo>
 
+QIcon QbsidianIconProvider::icon(const QFileInfo &info) const
+{
+    if (info.isDir())
+        return QIcon(":/icons/folder.svg");
+    if (info.suffix() == "md")
+        return QIcon(":/icons/markdown.svg");
+    return QFileIconProvider::icon(info);
+}
+
 FileExplorerPane::FileExplorerPane(QWidget *parent)
     : QWidget(parent)
 {
@@ -26,8 +35,8 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     QPushButton *btnNewFolder = new QPushButton(toolbar);
     btnNewNote->setFixedSize(28, 28);
     btnNewFolder->setFixedSize(28, 28);
-    btnNewNote->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
-    btnNewFolder->setIcon(style()->standardIcon(QStyle::SP_FileDialogNewFolder));
+    btnNewNote->setIcon(QIcon(":/icons/new-file.svg"));
+    btnNewFolder->setIcon(QIcon(":/icons/new-folder.svg"));
     btnNewNote->setIconSize(QSize(16, 16));
     btnNewFolder->setIconSize(QSize(16, 16));
     btnNewNote->setToolTip(tr("新建笔记"));
@@ -43,6 +52,8 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
 
     m_treeView = new QTreeView(this);
     m_model = new QFileSystemModel(this);
+    m_iconProvider = new QbsidianIconProvider();
+    m_model->setIconProvider(m_iconProvider);
 
     m_model->setFilter(QDir::AllDirs | QDir::Files | QDir::NoDotAndDotDot);
     m_model->setNameFilters({"*.md"});
@@ -50,7 +61,7 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
 
     m_treeView->setModel(m_model);
     m_treeView->setHeaderHidden(true);
-    m_treeView->setIndentation(12);
+    m_treeView->setIndentation(4);
     for (int i = 1; i < m_model->columnCount(); ++i)
         m_treeView->hideColumn(i);
 

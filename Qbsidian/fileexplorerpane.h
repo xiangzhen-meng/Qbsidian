@@ -2,9 +2,16 @@
 #define FILEEXPLORERPANE_H
 
 #include <QWidget>
+#include <QFileIconProvider>
 
 class QTreeView;
 class QFileSystemModel;
+
+class QbsidianIconProvider : public QFileIconProvider
+{
+public:
+    QIcon icon(const QFileInfo &info) const override;
+};
 
 class FileExplorerPane : public QWidget
 {
@@ -28,6 +35,7 @@ private slots:
 private:
     QTreeView *m_treeView;
     QFileSystemModel *m_model;
+    QbsidianIconProvider *m_iconProvider;
 };
 
 #endif // FILEEXPLORERPANE_H

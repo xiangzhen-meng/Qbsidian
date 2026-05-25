@@ -214,6 +214,7 @@ void MainWindow::setupPanes()
 
 void MainWindow::setupMenuBar()
 {
+    ui->actionSave->setIcon(QIcon(":/icons/save.svg"));
     ui->actionUndo->setEnabled(false);
     ui->actionRedo->setEnabled(false);
 }

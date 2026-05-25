@@ -36,6 +36,7 @@ set(PROJECT_SOURCES
         renderengine.cpp
         renderengine.h
         ${TS_FILES}
+        icons/icons.qrc
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
