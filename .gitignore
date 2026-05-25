@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# CMake build directories
+build/
+cmake-build-*/
+
+# Qt Creator
+*.user
+*.user.*
+.qtcreator/
+
+# Generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# Local project notes
+AGENTS.md
+AGENT.md
+qbsidian_phase1_api_doc.md

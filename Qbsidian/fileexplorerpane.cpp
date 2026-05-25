@@ -1,5 +1,6 @@
 #include "fileexplorerpane.h"
 #include "autohidescrollareafilter.h"
+#include "notemanager.h"
 #include <QTreeView>
 #include <QFileSystemModel>
 #include <QMenu>
@@ -9,13 +10,85 @@
 #include <QPushButton>
 #include <QStyle>
 #include <QFileInfo>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QStackedWidget>
+#include <QRegularExpression>
+#include <QLabel>
+#include <QFrame>
+
+QIcon QbsidianIconProvider::icon(const QFileInfo &info) const
+{
+    if (info.isDir())
+        return QIcon(":/icons/folder.svg");
+    if (info.suffix() == "md")
+        return QIcon(":/icons/markdown.svg");
+    return QFileIconProvider::icon(info);
+}
+
+bool DirFirstSortProxy::lessThan(const QModelIndex &left, const QModelIndex &right) const
+{
+    QFileSystemModel *fsm = qobject_cast<QFileSystemModel *>(sourceModel());
+    if (!fsm)
+        return QSortFilterProxyModel::lessThan(left, right);
+
+    QFileInfo leftInfo = fsm->fileInfo(left);
+    QFileInfo rightInfo = fsm->fileInfo(right);
+
+    if (leftInfo.isDir() != rightInfo.isDir())
+        return leftInfo.isDir();
+
+    return leftInfo.fileName().compare(rightInfo.fileName(), Qt::CaseInsensitive) < 0;
+}
 
 FileExplorerPane::FileExplorerPane(QWidget *parent)
     : QWidget(parent)
+    , m_searchBox(nullptr)
+    , m_stack(nullptr)
+    , m_filesButton(nullptr)
+    , m_searchButton(nullptr)
+    , m_treeView(nullptr)
+    , m_searchResults(nullptr)
+    , m_model(nullptr)
+    , m_sortProxy(nullptr)
+    , m_iconProvider(nullptr)
+    , m_noteManager(nullptr)
 {
-    QVBoxLayout *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
+    QVBoxLayout *rootLayout = new QVBoxLayout(this);
+    rootLayout->setContentsMargins(0, 0, 0, 0);
+    rootLayout->setSpacing(0);
+
+    QWidget *navBar = new QWidget(this);
+    QHBoxLayout *navLayout = new QHBoxLayout(navBar);
+    navLayout->setContentsMargins(6, 6, 6, 4);
+    navLayout->setSpacing(6);
+
+    m_filesButton = new QPushButton(tr("文件"), navBar);
+    m_searchButton = new QPushButton(tr("搜索"), navBar);
+    m_filesButton->setCheckable(true);
+    m_searchButton->setCheckable(true);
+    m_filesButton->setChecked(true);
+    m_filesButton->setFixedSize(52, 24);
+    m_searchButton->setFixedSize(52, 24);
+    QString navButtonStyle =
+        "QPushButton { padding: 2px 6px; font-size: 12px; font-weight: 500; border-radius: 5px; }"
+        "QPushButton:checked { background-color: #2e80f2; color: #ffffff; }";
+    m_filesButton->setStyleSheet(navButtonStyle);
+    m_searchButton->setStyleSheet(navButtonStyle);
+    m_filesButton->setToolTip(tr("文件树"));
+    m_searchButton->setToolTip(tr("搜索"));
+    navLayout->addWidget(m_filesButton);
+    navLayout->addWidget(m_searchButton);
+    navLayout->addStretch();
+    rootLayout->addWidget(navBar);
+
+    m_stack = new QStackedWidget(this);
+    rootLayout->addWidget(m_stack);
+
+    QWidget *filesPage = new QWidget(this);
+    QVBoxLayout *filesLayout = new QVBoxLayout(filesPage);
+    filesLayout->setContentsMargins(0, 0, 0, 0);
+    filesLayout->setSpacing(0);
 
     QWidget *toolbar = new QWidget(this);
     QHBoxLayout *toolbarLayout = new QHBoxLayout(toolbar);
@@ -24,12 +97,12 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
 
     QPushButton *btnNewNote = new QPushButton(toolbar);
     QPushButton *btnNewFolder = new QPushButton(toolbar);
-    btnNewNote->setFixedSize(28, 28);
-    btnNewFolder->setFixedSize(28, 28);
-    btnNewNote->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
-    btnNewFolder->setIcon(style()->standardIcon(QStyle::SP_FileDialogNewFolder));
-    btnNewNote->setIconSize(QSize(16, 16));
-    btnNewFolder->setIconSize(QSize(16, 16));
+    btnNewNote->setFixedSize(20, 20);
+    btnNewFolder->setFixedSize(30, 30);
+    btnNewNote->setIcon(QIcon(":/icons/new-file.svg"));
+    btnNewFolder->setIcon(QIcon(":/icons/new-folder.svg"));
+    btnNewNote->setIconSize(QSize(20, 20));
+    btnNewFolder->setIconSize(QSize(20, 20));
     btnNewNote->setToolTip(tr("新建笔记"));
     btnNewFolder->setToolTip(tr("新建文件夹"));
     btnNewNote->setFlat(true);
@@ -39,29 +112,77 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     toolbarLayout->addWidget(btnNewNote);
     toolbarLayout->addWidget(btnNewFolder);
     toolbarLayout->addStretch();
-    layout->addWidget(toolbar);
+    filesLayout->addWidget(toolbar);
 
     m_treeView = new QTreeView(this);
     m_model = new QFileSystemModel(this);
+    m_sortProxy = new DirFirstSortProxy(this);
+    m_sortProxy->setSourceModel(m_model);
+    m_sortProxy->setSortCaseSensitivity(Qt::CaseInsensitive);
+    m_sortProxy->setDynamicSortFilter(true);
+    m_sortProxy->sort(0, Qt::AscendingOrder);
+    m_iconProvider = new QbsidianIconProvider();
+    m_model->setIconProvider(m_iconProvider);
 
     m_model->setFilter(QDir::AllDirs | QDir::Files | QDir::NoDotAndDotDot);
     m_model->setNameFilters({"*.md"});
     m_model->setNameFilterDisables(false);
 
-    m_treeView->setModel(m_model);
+    m_treeView->setModel(m_sortProxy);
+    m_treeView->setSortingEnabled(true);
+    m_treeView->sortByColumn(0, Qt::AscendingOrder);
     m_treeView->setHeaderHidden(true);
-    m_treeView->setIndentation(12);
+    m_treeView->setIndentation(4);
     for (int i = 1; i < m_model->columnCount(); ++i)
         m_treeView->hideColumn(i);
 
     m_treeView->setContextMenuPolicy(Qt::CustomContextMenu);
 
-    layout->addWidget(m_treeView);
+    filesLayout->addWidget(m_treeView);
+
+    QWidget *searchPage = new QWidget(this);
+    QVBoxLayout *searchLayout = new QVBoxLayout(searchPage);
+    searchLayout->setContentsMargins(6, 6, 6, 0);
+    searchLayout->setSpacing(6);
+    m_searchBox = new QLineEdit(searchPage);
+    m_searchBox->setPlaceholderText(tr("搜索笔记内容..."));
+    m_searchBox->setClearButtonEnabled(true);
+    m_searchResults = new QListWidget(searchPage);
+    m_searchResults->setAlternatingRowColors(false);
+    m_searchResults->setFrameShape(QFrame::NoFrame);
+    m_searchResults->setSpacing(6);
+    m_searchResults->setStyleSheet(
+        "QListWidget { border: none; background: transparent; }"
+        "QListWidget::item { border: none; padding: 0; }"
+        "QListWidget::item:selected { background: transparent; }"
+    );
+    searchLayout->addWidget(m_searchBox);
+    searchLayout->addWidget(m_searchResults);
+
+    m_stack->addWidget(filesPage);
+    m_stack->addWidget(searchPage);
+    m_stack->setCurrentWidget(filesPage);
 
     connect(m_treeView, &QTreeView::clicked,
             this, &FileExplorerPane::onItemClicked);
     connect(m_treeView, &QWidget::customContextMenuRequested,
             this, &FileExplorerPane::onCustomContextMenu);
+
+    connect(m_searchBox, &QLineEdit::returnPressed,
+            this, &FileExplorerPane::onSearchReturnPressed);
+    connect(m_searchResults, &QListWidget::itemClicked,
+            this, &FileExplorerPane::onSearchResultClicked);
+    connect(m_filesButton, &QPushButton::clicked, this, [this, filesPage]() {
+        m_stack->setCurrentWidget(filesPage);
+        m_filesButton->setChecked(true);
+        m_searchButton->setChecked(false);
+    });
+    connect(m_searchButton, &QPushButton::clicked, this, [this, searchPage]() {
+        m_stack->setCurrentWidget(searchPage);
+        m_filesButton->setChecked(false);
+        m_searchButton->setChecked(true);
+        m_searchBox->setFocus();
+    });
 
     connect(btnNewNote, &QPushButton::clicked, this, [this]() {
         bool ok = false;
@@ -69,7 +190,7 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
                                              tr("笔记名称（不含扩展名）:"),
                                              QLineEdit::Normal, QString(), &ok);
         if (ok && !name.isEmpty())
-            emit newNoteRequested(rootPath(), name);
+            emit newNoteRequested(m_vaultPath.isEmpty() ? rootPath() : m_vaultPath, name);
     });
     connect(btnNewFolder, &QPushButton::clicked, this, [this]() {
         bool ok = false;
@@ -77,10 +198,11 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
                                              tr("文件夹名称:"),
                                              QLineEdit::Normal, QString(), &ok);
         if (ok && !name.isEmpty())
-            emit newFolderRequested(rootPath(), name);
+            emit newFolderRequested(m_vaultPath.isEmpty() ? rootPath() : m_vaultPath, name);
     });
 
     new AutoHideScrollAreaFilter(m_treeView, this);
+    new AutoHideScrollAreaFilter(m_searchResults, this);
 }
 
 QString FileExplorerPane::rootPath() const
@@ -91,22 +213,27 @@ QString FileExplorerPane::rootPath() const
 void FileExplorerPane::setRootPath(const QString &path)
 {
     QModelIndex rootIndex = m_model->setRootPath(path);
-    m_treeView->setRootIndex(rootIndex);
+    m_treeView->setRootIndex(m_sortProxy->mapFromSource(rootIndex));
+    m_sortProxy->sort(0, Qt::AscendingOrder);
+    m_treeView->sortByColumn(0, Qt::AscendingOrder);
 }
 
-void FileExplorerPane::onItemClicked(const QModelIndex &index)
+void FileExplorerPane::onItemClicked(const QModelIndex &proxyIndex)
 {
-    QFileInfo info = m_model->fileInfo(index);
+    QModelIndex sourceIndex = m_sortProxy->mapToSource(proxyIndex);
+    QFileInfo info = m_model->fileInfo(sourceIndex);
     if (info.isFile() && info.suffix() == "md")
         emit fileSelected(info.absoluteFilePath());
 }
 
 void FileExplorerPane::onCustomContextMenu(const QPoint &pos)
 {
-    QModelIndex index = m_treeView->indexAt(pos);
+    QModelIndex proxyIndex = m_treeView->indexAt(pos);
+    QModelIndex sourceIndex;
     QString dirPath;
-    if (index.isValid()) {
-        QFileInfo info = m_model->fileInfo(index);
+    if (proxyIndex.isValid()) {
+        sourceIndex = m_sortProxy->mapToSource(proxyIndex);
+        QFileInfo info = m_model->fileInfo(sourceIndex);
         dirPath = info.isDir() ? info.absoluteFilePath() : info.absolutePath();
     } else {
         dirPath = m_model->rootPath();
@@ -115,6 +242,11 @@ void FileExplorerPane::onCustomContextMenu(const QPoint &pos)
     QMenu menu(m_treeView);
     QAction *newNoteAction = menu.addAction(tr("新建笔记"));
     QAction *newFolderAction = menu.addAction(tr("新建文件夹"));
+    QAction *deleteAction = nullptr;
+    if (proxyIndex.isValid()) {
+        menu.addSeparator();
+        deleteAction = menu.addAction(tr("删除"));
+    }
 
     QAction *chosen = menu.exec(m_treeView->viewport()->mapToGlobal(pos));
     if (!chosen)
@@ -134,5 +266,87 @@ void FileExplorerPane::onCustomContextMenu(const QPoint &pos)
                                              QLineEdit::Normal, QString(), &ok);
         if (ok && !name.isEmpty())
             emit newFolderRequested(dirPath, name);
+    } else if (deleteAction && chosen == deleteAction) {
+        QFileInfo info = m_model->fileInfo(sourceIndex);
+        emit deleteRequested(info.absoluteFilePath());
     }
+}
+
+void FileExplorerPane::setNoteManager(NoteManager *manager)
+{
+    m_noteManager = manager;
+}
+
+void FileExplorerPane::setVaultPath(const QString &path)
+{
+    m_vaultPath = path;
+}
+
+void FileExplorerPane::onSearchReturnPressed()
+{
+    if (!m_noteManager || m_vaultPath.isEmpty())
+        return;
+
+    m_searchResults->clear();
+    QString query = m_searchBox->text().trimmed();
+    if (query.isEmpty())
+        return;
+
+    QRegularExpression regex(query, QRegularExpression::CaseInsensitiveOption);
+    if (!regex.isValid())
+        return;
+
+    QVector<SearchResult> results = m_noteManager->searchInVault(m_vaultPath, regex);
+    if (results.isEmpty()) {
+        QListWidgetItem *item = new QListWidgetItem(m_searchResults);
+        QWidget *card = new QWidget(m_searchResults);
+        card->setObjectName("searchCard");
+        card->setStyleSheet("QWidget#searchCard { background: rgba(128,128,128,0.08); border-radius: 8px; } QLabel { color: #8a8a8a; }");
+        QVBoxLayout *cardLayout = new QVBoxLayout(card);
+        cardLayout->setContentsMargins(10, 8, 10, 8);
+        QLabel *label = new QLabel(tr("没有找到匹配结果"), card);
+        cardLayout->addWidget(label);
+        item->setSizeHint(card->sizeHint());
+        item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
+        m_searchResults->setItemWidget(item, card);
+        return;
+    }
+
+    for (const SearchResult &res : results) {
+        QFileInfo fi(res.filePath);
+        QListWidgetItem *item = new QListWidgetItem(m_searchResults);
+        QWidget *card = new QWidget(m_searchResults);
+        card->setObjectName("searchCard");
+        card->setStyleSheet(
+            "QWidget#searchCard { background: rgba(128,128,128,0.08); border-radius: 8px; }"
+            "QLabel#searchTitle { font-weight: 600; color: palette(text); }"
+            "QLabel#searchExcerpt { color: #8a8a8a; }"
+        );
+        QVBoxLayout *cardLayout = new QVBoxLayout(card);
+        cardLayout->setContentsMargins(10, 8, 10, 8);
+        cardLayout->setSpacing(4);
+
+        QLabel *title = new QLabel(fi.fileName(), card);
+        title->setObjectName("searchTitle");
+        QLabel *excerpt = new QLabel(QString("第 %1 行 · %2").arg(res.lineNumber).arg(res.lineContent), card);
+        excerpt->setObjectName("searchExcerpt");
+        excerpt->setWordWrap(true);
+
+        cardLayout->addWidget(title);
+        cardLayout->addWidget(excerpt);
+        item->setSizeHint(card->sizeHint());
+        item->setData(Qt::UserRole, res.filePath);
+        item->setData(Qt::UserRole + 1, res.lineNumber);
+        m_searchResults->setItemWidget(item, card);
+    }
+}
+
+void FileExplorerPane::onSearchResultClicked(QListWidgetItem *item)
+{
+    QString filePath = item->data(Qt::UserRole).toString();
+    if (filePath.isEmpty())
+        return;
+
+    int lineNumber = item->data(Qt::UserRole + 1).toInt();
+    emit searchResultClicked(filePath, lineNumber);
 }
