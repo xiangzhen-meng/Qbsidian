@@ -26,6 +26,10 @@ class DirFirstSortProxy : public QSortFilterProxyModel
 public:
     using QSortFilterProxyModel::QSortFilterProxyModel;
 
+    Qt::ItemFlags flags(const QModelIndex &index) const override;
+    QStringList mimeTypes() const override;
+    QMimeData *mimeData(const QModelIndexList &indexes) const override;
+
 protected:
     bool lessThan(const QModelIndex &left, const QModelIndex &right) const override;
 };
@@ -41,6 +45,7 @@ public:
     void setVaultPath(const QString &path);
     void setNoteManager(NoteManager *manager);
     QString rootPath() const;
+    void setReviewButtonChecked(bool checked);
 
 signals:
     void fileSelected(const QString &absoluteFilePath);
@@ -48,6 +53,7 @@ signals:
     void newFolderRequested(const QString &directory, const QString &folderName);
     void deleteRequested(const QString &absolutePath);
     void searchResultClicked(const QString &filePath, int lineNumber);
+    void reviewTimelineRequested();
 
 private slots:
     void onItemClicked(const QModelIndex &index);
@@ -60,6 +66,7 @@ private:
     QStackedWidget *m_stack;
     QPushButton *m_filesButton;
     QPushButton *m_searchButton;
+    QPushButton *m_reviewButton;
     QTreeView *m_treeView;
     QListWidget *m_searchResults;
     QFileSystemModel *m_model;

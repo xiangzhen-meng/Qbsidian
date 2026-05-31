@@ -3,7 +3,9 @@
 #include "fileexplorerpane.h"
 #include "editorpane.h"
 #include "previewpane.h"
+#include "reviewtimelinepane.h"
 #include "notemanager.h"
+#include "ReviewManager.h"
 
 #include <QFileDialog>
 #include <QMessageBox>
@@ -19,14 +21,20 @@
 #include <QSignalBlocker>
 #include <QFileInfo>
 #include <QDir>
+#include <QDirIterator>
 #include <QPushButton>
+#include <QDate>
+#include <QTime>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
     , m_fileExplorer(nullptr)
     , m_tabWidget(nullptr)
+    , m_reviewTimeline(nullptr)
+    , m_reviewTimelinePage(nullptr)
     , m_noteManager(nullptr)
+    , m_reviewManager(nullptr)
     , m_noteManagerHadError(false)
     , m_themeMode(ThemeMode::Light)
 {
@@ -40,6 +48,8 @@ MainWindow::MainWindow(QWidget *parent)
     m_noteManager = new NoteManager(this);
     connect(m_noteManager, &NoteManager::errorOccurred,
             this, &MainWindow::onNoteManagerError);
+
+    m_reviewManager = new ReviewManager;
 
     m_fileExplorer->setNoteManager(m_noteManager);
 
@@ -59,6 +69,7 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
+    delete m_reviewManager;
     delete ui;
 }
 
@@ -239,6 +250,8 @@ void MainWindow::connectSignals()
             this, &MainWindow::onDeleteRequested);
     connect(m_fileExplorer, &FileExplorerPane::searchResultClicked,
             this, &MainWindow::onSearchResultClicked);
+    connect(m_fileExplorer, &FileExplorerPane::reviewTimelineRequested,
+            this, &MainWindow::onReviewTimelineRequested);
 
     connect(m_tabWidget, &QTabWidget::tabCloseRequested,
             this, &MainWindow::onTabCloseRequested);
@@ -364,6 +377,7 @@ bool MainWindow::openFileInTab(const QString &path)
     int index = m_tabWidget->addTab(tab->page, QFileInfo(path).fileName());
     m_tabsByPath.insert(path, tab);
     m_tabWidget->setCurrentIndex(index);
+    m_tabWidget->setTabBarAutoHide(false);
     updateTitle();
     ui->statusbar->showMessage(tr("已打开: %1").arg(QFileInfo(path).fileName()));
     return true;
@@ -432,6 +446,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 void MainWindow::onFileSelected(const QString &absoluteFilePath)
 {
+    m_fileExplorer->setReviewButtonChecked(false);
     openFileInTab(absoluteFilePath);
 }
 
@@ -482,8 +497,22 @@ void MainWindow::onDeleteRequested(const QString &absolutePath)
     if (btn != QMessageBox::Yes)
         return;
 
+    QStringList reviewPathsToRemove;
+    if (info.isDir()) {
+        QDirIterator it(absolutePath, {"*.md"}, QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            it.next();
+            reviewPathsToRemove.append(it.filePath());
+        }
+    } else if (info.suffix() == "md") {
+        reviewPathsToRemove.append(absolutePath);
+    }
+
     if (!m_noteManager->deleteItem(absolutePath))
         return;
+
+    for (const QString &path : reviewPathsToRemove)
+        m_reviewManager->removeNoteRecord(path);
 
     QList<NoteTab *> removedTabs;
     for (NoteTab *tab : m_tabsByPath) {
@@ -562,6 +591,11 @@ void MainWindow::onTabCloseRequested(int index)
 {
     NoteTab *tab = nullptr;
     QWidget *page = m_tabWidget->widget(index);
+    if (page == m_reviewTimelinePage) {
+        closeTabAt(index);
+        return;
+    }
+
     for (NoteTab *candidate : m_tabsByPath) {
         if (candidate->page == page) {
             tab = candidate;
@@ -596,6 +630,16 @@ void MainWindow::closeTabAt(int index)
     if (!page)
         return;
 
+    if (page == m_reviewTimelinePage) {
+        m_tabWidget->removeTab(index);
+        m_reviewTimelinePage->deleteLater();
+        m_reviewTimelinePage = nullptr;
+        m_reviewTimeline = nullptr;
+        m_fileExplorer->setReviewButtonChecked(false);
+        updateTitle();
+        return;
+    }
+
     NoteTab *tab = nullptr;
     for (NoteTab *candidate : m_tabsByPath) {
         if (candidate->page == page) {
@@ -620,4 +664,118 @@ void MainWindow::onCurrentTabChanged(int index)
     ui->actionUndo->setEnabled(tab && tab->editor->document()->isUndoAvailable());
     ui->actionRedo->setEnabled(tab && tab->editor->document()->isRedoAvailable());
     updateTitle();
+}
+
+void MainWindow::onReviewItemOpenRequested(const QString &noteId)
+{
+    if (!QFileInfo::exists(noteId)) {
+        QMessageBox::warning(this, tr("文件不存在"),
+            tr("笔记文件 \"%1\" 不存在，可能已被删除。\n\n将从复习计划中移除。").arg(noteId));
+        m_reviewManager->removeNoteRecord(noteId);
+        refreshReviewTimeline();
+        return;
+    }
+    m_fileExplorer->setReviewButtonChecked(false);
+    openFileInTab(noteId);
+}
+
+void MainWindow::onTimelineNotePreviewRequested(const QString &absolutePath)
+{
+    if (!QFileInfo::exists(absolutePath)) {
+        QMessageBox::warning(this, tr("文件不存在"),
+            tr("笔记文件 \"%1\" 不存在，可能已被删除。\n\n将从复习计划中移除。").arg(absolutePath));
+        m_reviewManager->removeNoteRecord(absolutePath);
+        refreshReviewTimeline();
+        return;
+    }
+
+    m_noteManagerHadError = false;
+    QString content = m_noteManager->load(absolutePath);
+    if (m_noteManagerHadError)
+        return;
+
+    if (m_reviewTimeline)
+        m_reviewTimeline->showPreview(absolutePath, QFileInfo(absolutePath).fileName(), content);
+}
+
+void MainWindow::onTimelineFamiliarRequested(const QString &absolutePath)
+{
+    QFileInfo info(absolutePath);
+    if (!info.exists() || !info.isFile())
+        return;
+
+    m_reviewManager->addManualReviewSchedule(absolutePath, info.completeBaseName(),
+        QDateTime(QDate::currentDate().addDays(5), QTime(9, 0)));
+    refreshReviewTimeline();
+    if (m_reviewTimeline)
+        m_reviewTimeline->clearPreview();
+    ui->statusbar->showMessage(tr("已安排 5 天后复习: %1").arg(info.completeBaseName()));
+}
+
+void MainWindow::onTimelineForgetRequested(const QString &absolutePath)
+{
+    QFileInfo info(absolutePath);
+    if (!info.exists() || !info.isFile())
+        return;
+
+    m_reviewManager->addManualReviewSchedule(absolutePath, info.completeBaseName(),
+        QDateTime(QDate::currentDate().addDays(1), QTime(9, 0)));
+    refreshReviewTimeline();
+    if (m_reviewTimeline)
+        m_reviewTimeline->clearPreview();
+    ui->statusbar->showMessage(tr("已安排明天复习: %1").arg(info.completeBaseName()));
+}
+
+void MainWindow::onReviewTimelineRequested()
+{
+    ensureReviewTimelineTab();
+    refreshReviewTimeline();
+    m_fileExplorer->setReviewButtonChecked(true);
+    m_tabWidget->setCurrentWidget(m_reviewTimelinePage);
+}
+
+void MainWindow::onTimelineNoteDropped(const QString &absolutePath, const QDate &date)
+{
+    QFileInfo info(absolutePath);
+    if (!info.exists() || !info.isFile())
+        return;
+
+    QString title = info.completeBaseName();
+    m_reviewManager->addManualReviewSchedule(absolutePath, title, QDateTime(date, QTime(9, 0)));
+    refreshReviewTimeline();
+    ui->statusbar->showMessage(tr("已安排复习: %1").arg(title));
+}
+
+void MainWindow::ensureReviewTimelineTab()
+{
+    if (m_reviewTimelinePage)
+        return;
+
+    m_reviewTimelinePage = new QWidget(m_tabWidget);
+    QVBoxLayout *timelineLayout = new QVBoxLayout(m_reviewTimelinePage);
+    timelineLayout->setContentsMargins(0, 0, 0, 0);
+    m_reviewTimeline = new ReviewTimelinePane(m_reviewTimelinePage);
+    timelineLayout->addWidget(m_reviewTimeline);
+
+    int index = m_tabWidget->addTab(m_reviewTimelinePage, tr("复习时间轴"));
+    m_tabWidget->setCurrentIndex(index);
+
+    connect(m_reviewTimeline, &ReviewTimelinePane::noteDropped,
+            this, &MainWindow::onTimelineNoteDropped);
+    connect(m_reviewTimeline, &ReviewTimelinePane::noteOpenRequested,
+            this, &MainWindow::onReviewItemOpenRequested);
+    connect(m_reviewTimeline, &ReviewTimelinePane::notePreviewRequested,
+            this, &MainWindow::onTimelineNotePreviewRequested);
+    connect(m_reviewTimeline, &ReviewTimelinePane::familiarRequested,
+            this, &MainWindow::onTimelineFamiliarRequested);
+    connect(m_reviewTimeline, &ReviewTimelinePane::forgetRequested,
+            this, &MainWindow::onTimelineForgetRequested);
+}
+
+void MainWindow::refreshReviewTimeline()
+{
+    if (!m_reviewTimeline || !m_reviewManager)
+        return;
+
+    m_reviewTimeline->setReviewPlan(m_reviewManager->reviewPlanBetween(m_reviewTimeline->startDate(), m_reviewTimeline->endDate()));
 }

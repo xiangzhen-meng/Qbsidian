@@ -4,13 +4,22 @@
 #include <QMap>
 #include <QList>
 #include <QString>
-#include "ReviewEntity.h"
-#include "ReviewStrategy.h"
+#include <QDateTime>
+#include "reviewentity.h"
+#include "reviewstrategy.h"
+
+struct ManualReviewSchedule {
+    QString id;
+    QString notePath;
+    QString noteTitle;
+    QDateTime reviewDateTime;
+};
 
 class ReviewManager {
 private:
     QMap<QString, ReviewEntity> m_noteEntities;       // 内存中的所有笔记复习数据 (Key: noteId)
     QMap<QString, IReviewStrategy*> m_strategies;     // 注册的所有复习策略 (Key: strategyId)
+    QList<ManualReviewSchedule> m_manualSchedules;
     int m_globalDailyLimit = 50; // 全局设定的每日复习上限数
 public:
     ReviewManager();
@@ -47,6 +56,9 @@ public:
      * @return 按“用户优先级降序 -> 逾期时间降序”排好序的待办列表
      */
     QList<ReviewEntity> generateDailyPlan(int maxDailyLimit = 50);
+    QList<ReviewEntity> reviewPlanBetween(const QDate& start, const QDate& end) const;
+    void addManualReviewSchedule(const QString& notePath, const QString& noteTitle, const QDateTime& reviewDateTime);
+    void removeManualSchedulesForNote(const QString& notePath);
 
     /**
      * @brief 用户在 UI 点了“认识/不认识”后调用此接口更新状态
