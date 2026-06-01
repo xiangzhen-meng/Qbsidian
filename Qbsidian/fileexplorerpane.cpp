@@ -19,6 +19,9 @@
 #include <QMimeData>
 #include <QUrl>
 #include <QAbstractItemView>
+#include <QPainter>
+#include <QApplication>
+#include <QStyleOptionViewItem>
 
 QIcon QbsidianIconProvider::icon(const QFileInfo &info) const
 {
@@ -82,6 +85,88 @@ QMimeData *DirFirstSortProxy::mimeData(const QModelIndexList &indexes) const
     return mimeData;
 }
 
+FileTreeDelegate::FileTreeDelegate(QTreeView *treeView, DirFirstSortProxy *sortProxy, QFileSystemModel *model, QObject *parent)
+    : QStyledItemDelegate(parent)
+    , m_treeView(treeView)
+    , m_sortProxy(sortProxy)
+    , m_model(model)
+    , m_darkMode(false)
+{
+}
+
+void FileTreeDelegate::setDarkMode(bool dark)
+{
+    m_darkMode = dark;
+}
+
+void FileTreeDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const
+{
+    QStyledItemDelegate::paint(painter, option, index);
+
+    if (!m_treeView || !m_sortProxy || !m_model || !index.isValid())
+        return;
+
+    bool expandedDir = isExpandedDirectory(index);
+    if (!expandedDir && !index.parent().isValid())
+        return;
+
+    painter->save();
+    QColor lineColor = m_darkMode ? QColor(255, 255, 255, 22) : QColor(0, 0, 0, 18);
+    painter->setPen(QPen(lineColor, 1));
+
+    if (expandedDir) {
+        QRect iconRect = iconRectForIndex(index, option.rect, option);
+        int x = iconRect.center().x();
+        painter->drawLine(x, iconRect.bottom() + 2, x, option.rect.bottom());
+    }
+
+    for (QModelIndex ancestor = index.parent(); ancestor.isValid(); ancestor = ancestor.parent()) {
+        if (!isExpandedDirectory(ancestor))
+            continue;
+
+        QRect ancestorRect = m_treeView->visualRect(ancestor);
+        QRect ancestorIconRect = iconRectForIndex(ancestor, ancestorRect, option);
+        int x = ancestorIconRect.center().x();
+        painter->drawLine(x, option.rect.top(), x, option.rect.bottom());
+    }
+    painter->restore();
+}
+
+int FileTreeDelegate::depthForIndex(const QModelIndex &index) const
+{
+    int depth = 0;
+    QModelIndex parentIndex = index.parent();
+    while (parentIndex.isValid()) {
+        ++depth;
+        parentIndex = parentIndex.parent();
+    }
+    return depth;
+}
+
+bool FileTreeDelegate::isDirectory(const QModelIndex &index) const
+{
+    if (!index.isValid() || !m_sortProxy || !m_model)
+        return false;
+
+    QModelIndex sourceIndex = m_sortProxy->mapToSource(index);
+    return m_model->fileInfo(sourceIndex).isDir();
+}
+
+bool FileTreeDelegate::isExpandedDirectory(const QModelIndex &index) const
+{
+    return isDirectory(index) && m_treeView && m_treeView->isExpanded(index);
+}
+
+QRect FileTreeDelegate::iconRectForIndex(const QModelIndex &index, const QRect &itemRect, const QStyleOptionViewItem &baseOption) const
+{
+    QStyleOptionViewItem itemOption(baseOption);
+    initStyleOption(&itemOption, index);
+    itemOption.rect = itemRect;
+
+    QStyle *style = m_treeView ? m_treeView->style() : QApplication::style();
+    return style->subElementRect(QStyle::SE_ItemViewItemDecoration, &itemOption, m_treeView);
+}
+
 FileExplorerPane::FileExplorerPane(QWidget *parent)
     : QWidget(parent)
     , m_searchBox(nullptr)
@@ -94,6 +179,7 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     , m_model(nullptr)
     , m_sortProxy(nullptr)
     , m_iconProvider(nullptr)
+    , m_treeDelegate(nullptr)
     , m_noteManager(nullptr)
 {
     QVBoxLayout *rootLayout = new QVBoxLayout(this);
@@ -180,10 +266,12 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     m_treeView->setSortingEnabled(true);
     m_treeView->sortByColumn(0, Qt::AscendingOrder);
     m_treeView->setHeaderHidden(true);
-    m_treeView->setIndentation(4);
+    m_treeView->setIndentation(12);
     m_treeView->setDragEnabled(true);
     m_treeView->setDragDropMode(QAbstractItemView::DragOnly);
     m_treeView->setDefaultDropAction(Qt::CopyAction);
+    m_treeDelegate = new FileTreeDelegate(m_treeView, m_sortProxy, m_model, this);
+    m_treeView->setItemDelegate(m_treeDelegate);
     for (int i = 1; i < m_model->columnCount(); ++i)
         m_treeView->hideColumn(i);
 
@@ -252,7 +340,7 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
                                              tr("笔记名称（不含扩展名）:"),
                                              QLineEdit::Normal, QString(), &ok);
         if (ok && !name.isEmpty())
-            emit newNoteRequested(m_vaultPath.isEmpty() ? rootPath() : m_vaultPath, name);
+            emit newNoteRequested(currentTargetDirectory(), name);
     });
     connect(btnNewFolder, &QPushButton::clicked, this, [this]() {
         bool ok = false;
@@ -260,7 +348,7 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
                                              tr("文件夹名称:"),
                                              QLineEdit::Normal, QString(), &ok);
         if (ok && !name.isEmpty())
-            emit newFolderRequested(m_vaultPath.isEmpty() ? rootPath() : m_vaultPath, name);
+            emit newFolderRequested(currentTargetDirectory(), name);
     });
 
     new AutoHideScrollAreaFilter(m_treeView, this);
@@ -420,4 +508,28 @@ void FileExplorerPane::setReviewButtonChecked(bool checked)
         m_filesButton->setChecked(false);
         m_searchButton->setChecked(false);
     }
+}
+
+void FileExplorerPane::setDarkMode(bool dark)
+{
+    if (!m_treeDelegate)
+        return;
+
+    m_treeDelegate->setDarkMode(dark);
+    m_treeView->viewport()->update();
+}
+
+QString FileExplorerPane::currentTargetDirectory() const
+{
+    QString fallback = m_vaultPath.isEmpty() ? rootPath() : m_vaultPath;
+    QModelIndex proxyIndex = m_treeView->currentIndex();
+    if (!proxyIndex.isValid())
+        return fallback;
+
+    QModelIndex sourceIndex = m_sortProxy->mapToSource(proxyIndex);
+    QFileInfo info = m_model->fileInfo(sourceIndex);
+    if (!info.exists())
+        return fallback;
+
+    return info.isDir() ? info.absoluteFilePath() : info.absolutePath();
 }

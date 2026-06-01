@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QFileIconProvider>
 #include <QSortFilterProxyModel>
+#include <QStyledItemDelegate>
 
 class QTreeView;
 class QFileSystemModel;
@@ -34,6 +35,29 @@ protected:
     bool lessThan(const QModelIndex &left, const QModelIndex &right) const override;
 };
 
+class FileTreeDelegate : public QStyledItemDelegate
+{
+    Q_OBJECT
+public:
+    FileTreeDelegate(QTreeView *treeView, DirFirstSortProxy *sortProxy, QFileSystemModel *model, QObject *parent = nullptr);
+
+    void setDarkMode(bool dark);
+
+protected:
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
+
+private:
+    int depthForIndex(const QModelIndex &index) const;
+    bool isDirectory(const QModelIndex &index) const;
+    bool isExpandedDirectory(const QModelIndex &index) const;
+    QRect iconRectForIndex(const QModelIndex &index, const QRect &itemRect, const QStyleOptionViewItem &baseOption) const;
+
+    QTreeView *m_treeView;
+    DirFirstSortProxy *m_sortProxy;
+    QFileSystemModel *m_model;
+    bool m_darkMode;
+};
+
 class FileExplorerPane : public QWidget
 {
     Q_OBJECT
@@ -46,6 +70,7 @@ public:
     void setNoteManager(NoteManager *manager);
     QString rootPath() const;
     void setReviewButtonChecked(bool checked);
+    void setDarkMode(bool dark);
 
 signals:
     void fileSelected(const QString &absoluteFilePath);
@@ -62,6 +87,8 @@ private slots:
     void onSearchResultClicked(QListWidgetItem *item);
 
 private:
+    QString currentTargetDirectory() const;
+
     QLineEdit *m_searchBox;
     QStackedWidget *m_stack;
     QPushButton *m_filesButton;
@@ -72,6 +99,7 @@ private:
     QFileSystemModel *m_model;
     DirFirstSortProxy *m_sortProxy;
     QbsidianIconProvider *m_iconProvider;
+    FileTreeDelegate *m_treeDelegate;
     NoteManager *m_noteManager;
     QString m_vaultPath;
 };
