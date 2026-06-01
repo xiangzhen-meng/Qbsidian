@@ -1,6 +1,7 @@
-#include "previewpane.h"
+ #include "previewpane.h"
 #include "markdownparser.h"
 #include "autohidescrollareafilter.h"
+#include <QRegularExpression>
 #include <QScrollBar>
 
 PreviewPane::PreviewPane(QWidget *parent)
@@ -80,11 +81,31 @@ void PreviewPane::showHtml(const QString &markdown)
 {
     int savedPos = verticalScrollBar()->value();
 
+    //  Markdown 解析引擎正常解析文本
     QString htmlBody = MarkdownParser::parse(markdown);
+
+    QRegularExpression regex("#题库/(\\S+)\\s+([^:<]+)::([^<]+)");
+
+    QString htmlReplacement =
+        "<div style=\"border: 1px solid #ddd; border-left: 4px solid #4CAF50; padding: 10px; margin: 10px 0; border-radius: 4px; background-color: #f9f9f9;\">"
+        "  <details>"
+        "    <summary style=\"font-weight: bold; cursor: pointer; color: #333; outline: none;\">"
+        "      <span style=\"color: #4CAF50; font-size: 0.8em; border: 1px solid #4CAF50; border-radius: 10px; padding: 1px 6px; margin-right: 5px;\">\\1</span>"
+        "      \\2"
+        "    </summary>"
+        "    <div style=\"margin-top: 10px; color: #555; padding-top: 10px; border-top: 1px dashed #ccc;\">"
+        "      \\3"
+        "    </div>"
+        "  </details>"
+        "</div>";
+
+    htmlBody.replace(regex, htmlReplacement);
+
     QString fullHtml = QString(
-        "<style>%1</style>"
-        "<div>%2</div>"
-    ).arg(buildStyleSheet(), htmlBody);
+                           "<style>%1</style>"
+                           "<div>%2</div>"
+                           ).arg(buildStyleSheet(), htmlBody);
+
     setHtml(fullHtml);
 
     verticalScrollBar()->setValue(savedPos);
