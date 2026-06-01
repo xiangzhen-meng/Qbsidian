@@ -25,6 +25,8 @@ set(PROJECT_SOURCES
         editorpane.h
         previewpane.cpp
         previewpane.h
+        reviewtimelinepane.cpp
+        reviewtimelinepane.h
         autohidescrollareafilter.cpp
         autohidescrollareafilter.h
         blockparser.cpp

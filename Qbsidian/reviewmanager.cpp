@@ -3,6 +3,7 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QDebug>
+#include <QFileInfo>
 #include <algorithm>
 
 // ==========================================
@@ -81,6 +82,21 @@ void ReviewManager::loadData() {
             m_noteEntities.insert(entity.noteId, entity);
         }
     }
+
+    m_manualSchedules.clear();
+    if (root.contains("manualSchedules")) {
+        QJsonArray scheduleArray = root["manualSchedules"].toArray();
+        for (const QJsonValue &val : scheduleArray) {
+            QJsonObject obj = val.toObject();
+            ManualReviewSchedule schedule;
+            schedule.id = obj["id"].toString();
+            schedule.notePath = obj["notePath"].toString();
+            schedule.noteTitle = obj["noteTitle"].toString();
+            schedule.reviewDateTime = QDateTime::fromString(obj["reviewDateTime"].toString(), Qt::ISODate);
+            if (!schedule.notePath.isEmpty() && schedule.reviewDateTime.isValid())
+                m_manualSchedules.append(schedule);
+        }
+    }
 }
 
 void ReviewManager::saveData() {
@@ -118,6 +134,17 @@ void ReviewManager::saveData() {
         notesArray.append(entity.toJson());
     }
     root["notes"] = notesArray;
+
+    QJsonArray scheduleArray;
+    for (const ManualReviewSchedule &schedule : m_manualSchedules) {
+        QJsonObject obj;
+        obj["id"] = schedule.id;
+        obj["notePath"] = schedule.notePath;
+        obj["noteTitle"] = schedule.noteTitle;
+        obj["reviewDateTime"] = schedule.reviewDateTime.toString(Qt::ISODate);
+        scheduleArray.append(obj);
+    }
+    root["manualSchedules"] = scheduleArray;
 
     // 3. 写入文件
     QFile file("review_data.json");
@@ -269,6 +296,73 @@ QList<ReviewEntity> ReviewManager::generateDailyPlan(int maxDailyLimit) {
     return dueList;
 }
 
+QList<ReviewEntity> ReviewManager::reviewPlanBetween(const QDate& start, const QDate& end) const {
+    QList<ReviewEntity> plan;
+
+    for (const auto& entity : m_noteEntities.values()) {
+        if (entity.status != NoteStatus::Learning || !entity.nextReviewTime.isValid())
+            continue;
+
+        QDate reviewDate = entity.nextReviewTime.date();
+        if (reviewDate >= start && reviewDate <= end)
+            plan.append(entity);
+    }
+
+    for (const ManualReviewSchedule &schedule : m_manualSchedules) {
+        QDate reviewDate = schedule.reviewDateTime.date();
+        if (reviewDate < start || reviewDate > end)
+            continue;
+
+        ReviewEntity entity;
+        entity.noteId = schedule.notePath;
+        entity.noteTitle = schedule.noteTitle.isEmpty() ? QFileInfo(schedule.notePath).completeBaseName() : schedule.noteTitle;
+        entity.nextReviewTime = schedule.reviewDateTime;
+        entity.status = NoteStatus::Learning;
+        plan.append(entity);
+    }
+
+    std::sort(plan.begin(), plan.end(), [](const ReviewEntity& a, const ReviewEntity& b) {
+        if (a.nextReviewTime.date() != b.nextReviewTime.date())
+            return a.nextReviewTime < b.nextReviewTime;
+        if (a.userPriority != b.userPriority)
+            return a.userPriority > b.userPriority;
+        return a.noteTitle.compare(b.noteTitle, Qt::CaseInsensitive) < 0;
+    });
+
+    return plan;
+}
+
+void ReviewManager::addManualReviewSchedule(const QString& notePath, const QString& noteTitle, const QDateTime& reviewDateTime) {
+    if (notePath.isEmpty() || !reviewDateTime.isValid())
+        return;
+
+    for (const ManualReviewSchedule &schedule : m_manualSchedules) {
+        if (schedule.notePath == notePath && schedule.reviewDateTime.date() == reviewDateTime.date())
+            return;
+    }
+
+    ManualReviewSchedule schedule;
+    schedule.id = QString("manual_%1").arg(QDateTime::currentMSecsSinceEpoch());
+    schedule.notePath = notePath;
+    schedule.noteTitle = noteTitle;
+    schedule.reviewDateTime = reviewDateTime;
+    m_manualSchedules.append(schedule);
+    saveData();
+}
+
+void ReviewManager::removeManualSchedulesForNote(const QString& notePath) {
+    bool removed = false;
+    for (int i = m_manualSchedules.size() - 1; i >= 0; --i) {
+        if (m_manualSchedules.at(i).notePath == notePath) {
+            m_manualSchedules.removeAt(i);
+            removed = true;
+        }
+    }
+
+    if (removed)
+        saveData();
+}
+
 void ReviewManager::processReviewFeedback(const QString& noteId, bool isRemembered) {
     if (!m_noteEntities.contains(noteId)) return;
 
@@ -297,4 +391,5 @@ void ReviewManager::removeNoteRecord(const QString& noteId) {
         m_noteEntities.remove(noteId); // 从内存 Map 中移除
         saveData();                   // 立即保存同步到磁盘
     }
+    removeManualSchedulesForNote(noteId);
 }

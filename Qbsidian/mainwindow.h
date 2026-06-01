@@ -8,7 +8,9 @@
 class FileExplorerPane;
 class EditorPane;
 class PreviewPane;
+class ReviewTimelinePane;
 class NoteManager;
+class ReviewManager;
 class QSplitter;
 class QTabWidget;
 class QTimer;
@@ -59,6 +61,12 @@ private slots:
     void onSearchResultClicked(const QString &filePath, int lineNumber);
     void onTabCloseRequested(int index);
     void onCurrentTabChanged(int index);
+    void onReviewItemOpenRequested(const QString &noteId);
+    void onTimelineNotePreviewRequested(const QString &absolutePath);
+    void onTimelineFamiliarRequested(const QString &absolutePath);
+    void onTimelineForgetRequested(const QString &absolutePath);
+    void onReviewTimelineRequested();
+    void onTimelineNoteDropped(const QString &absolutePath, const QDate &date);
 
 private:
     void setupUi();
@@ -80,12 +88,17 @@ private:
     void saveThemeSetting();
     QString buildLightQss() const;
     QString buildDarkQss() const;
+    void ensureReviewTimelineTab();
+    void refreshReviewTimeline();
 
     Ui::MainWindow *ui;
     QSplitter *m_splitter;
     FileExplorerPane *m_fileExplorer;
     QTabWidget *m_tabWidget;
+    ReviewTimelinePane *m_reviewTimeline;
+    QWidget *m_reviewTimelinePage;
     NoteManager *m_noteManager;
+    ReviewManager *m_reviewManager;
 
     QHash<QString, NoteTab *> m_tabsByPath;
     QString m_vaultPath;

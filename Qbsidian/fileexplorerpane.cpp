@@ -16,6 +16,9 @@
 #include <QRegularExpression>
 #include <QLabel>
 #include <QFrame>
+#include <QMimeData>
+#include <QUrl>
+#include <QAbstractItemView>
 
 QIcon QbsidianIconProvider::icon(const QFileInfo &info) const
 {
@@ -41,12 +44,51 @@ bool DirFirstSortProxy::lessThan(const QModelIndex &left, const QModelIndex &rig
     return leftInfo.fileName().compare(rightInfo.fileName(), Qt::CaseInsensitive) < 0;
 }
 
+Qt::ItemFlags DirFirstSortProxy::flags(const QModelIndex &index) const
+{
+    Qt::ItemFlags itemFlags = QSortFilterProxyModel::flags(index);
+    QFileSystemModel *fsm = qobject_cast<QFileSystemModel *>(sourceModel());
+    if (!fsm || !index.isValid())
+        return itemFlags;
+
+    QFileInfo info = fsm->fileInfo(mapToSource(index));
+    if (info.isFile() && info.suffix() == "md")
+        itemFlags |= Qt::ItemIsDragEnabled;
+    return itemFlags;
+}
+
+QStringList DirFirstSortProxy::mimeTypes() const
+{
+    return {QStringLiteral("text/uri-list")};
+}
+
+QMimeData *DirFirstSortProxy::mimeData(const QModelIndexList &indexes) const
+{
+    QFileSystemModel *fsm = qobject_cast<QFileSystemModel *>(sourceModel());
+    QMimeData *mimeData = new QMimeData;
+    if (!fsm)
+        return mimeData;
+
+    QList<QUrl> urls;
+    for (const QModelIndex &index : indexes) {
+        if (!index.isValid() || index.column() != 0)
+            continue;
+
+        QFileInfo info = fsm->fileInfo(mapToSource(index));
+        if (info.isFile() && info.suffix() == "md")
+            urls.append(QUrl::fromLocalFile(info.absoluteFilePath()));
+    }
+    mimeData->setUrls(urls);
+    return mimeData;
+}
+
 FileExplorerPane::FileExplorerPane(QWidget *parent)
     : QWidget(parent)
     , m_searchBox(nullptr)
     , m_stack(nullptr)
     , m_filesButton(nullptr)
     , m_searchButton(nullptr)
+    , m_reviewButton(nullptr)
     , m_treeView(nullptr)
     , m_searchResults(nullptr)
     , m_model(nullptr)
@@ -65,20 +107,26 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
 
     m_filesButton = new QPushButton(tr("文件"), navBar);
     m_searchButton = new QPushButton(tr("搜索"), navBar);
+    m_reviewButton = new QPushButton(tr("复习"), navBar);
     m_filesButton->setCheckable(true);
     m_searchButton->setCheckable(true);
+    m_reviewButton->setCheckable(true);
     m_filesButton->setChecked(true);
     m_filesButton->setFixedSize(52, 24);
     m_searchButton->setFixedSize(52, 24);
+    m_reviewButton->setFixedSize(52, 24);
     QString navButtonStyle =
         "QPushButton { padding: 2px 6px; font-size: 12px; font-weight: 500; border-radius: 5px; }"
         "QPushButton:checked { background-color: #2e80f2; color: #ffffff; }";
     m_filesButton->setStyleSheet(navButtonStyle);
     m_searchButton->setStyleSheet(navButtonStyle);
+    m_reviewButton->setStyleSheet(navButtonStyle);
     m_filesButton->setToolTip(tr("文件树"));
     m_searchButton->setToolTip(tr("搜索"));
+    m_reviewButton->setToolTip(tr("复习"));
     navLayout->addWidget(m_filesButton);
     navLayout->addWidget(m_searchButton);
+    navLayout->addWidget(m_reviewButton);
     navLayout->addStretch();
     rootLayout->addWidget(navBar);
 
@@ -133,6 +181,9 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     m_treeView->sortByColumn(0, Qt::AscendingOrder);
     m_treeView->setHeaderHidden(true);
     m_treeView->setIndentation(4);
+    m_treeView->setDragEnabled(true);
+    m_treeView->setDragDropMode(QAbstractItemView::DragOnly);
+    m_treeView->setDefaultDropAction(Qt::CopyAction);
     for (int i = 1; i < m_model->columnCount(); ++i)
         m_treeView->hideColumn(i);
 
@@ -161,6 +212,7 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
 
     m_stack->addWidget(filesPage);
     m_stack->addWidget(searchPage);
+
     m_stack->setCurrentWidget(filesPage);
 
     connect(m_treeView, &QTreeView::clicked,
@@ -172,16 +224,26 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
             this, &FileExplorerPane::onSearchReturnPressed);
     connect(m_searchResults, &QListWidget::itemClicked,
             this, &FileExplorerPane::onSearchResultClicked);
+
     connect(m_filesButton, &QPushButton::clicked, this, [this, filesPage]() {
         m_stack->setCurrentWidget(filesPage);
         m_filesButton->setChecked(true);
         m_searchButton->setChecked(false);
+        m_reviewButton->setChecked(false);
     });
     connect(m_searchButton, &QPushButton::clicked, this, [this, searchPage]() {
         m_stack->setCurrentWidget(searchPage);
         m_filesButton->setChecked(false);
         m_searchButton->setChecked(true);
+        m_reviewButton->setChecked(false);
         m_searchBox->setFocus();
+    });
+    connect(m_reviewButton, &QPushButton::clicked, this, [this]() {
+        m_stack->setCurrentIndex(0);
+        m_filesButton->setChecked(false);
+        m_searchButton->setChecked(false);
+        m_reviewButton->setChecked(true);
+        emit reviewTimelineRequested();
     });
 
     connect(btnNewNote, &QPushButton::clicked, this, [this]() {
@@ -233,8 +295,8 @@ void FileExplorerPane::onCustomContextMenu(const QPoint &pos)
     QString dirPath;
     if (proxyIndex.isValid()) {
         sourceIndex = m_sortProxy->mapToSource(proxyIndex);
-        QFileInfo info = m_model->fileInfo(sourceIndex);
-        dirPath = info.isDir() ? info.absoluteFilePath() : info.absolutePath();
+        QFileInfo fileInfo = m_model->fileInfo(sourceIndex);
+        dirPath = fileInfo.isDir() ? fileInfo.absoluteFilePath() : fileInfo.absolutePath();
     } else {
         dirPath = m_model->rootPath();
     }
@@ -349,4 +411,13 @@ void FileExplorerPane::onSearchResultClicked(QListWidgetItem *item)
 
     int lineNumber = item->data(Qt::UserRole + 1).toInt();
     emit searchResultClicked(filePath, lineNumber);
+}
+
+void FileExplorerPane::setReviewButtonChecked(bool checked)
+{
+    m_reviewButton->setChecked(checked);
+    if (checked) {
+        m_filesButton->setChecked(false);
+        m_searchButton->setChecked(false);
+    }
 }
