@@ -29,10 +29,17 @@ QString InlineParser::process(const QString &text)
         QString noteName = wikiMatch.captured(1).trimmed();
         QString alias = wikiMatch.captured(2).trimmed();
 
-        QString displayText = alias.isEmpty() ? noteName : alias;
-        QString encodedName = QUrl::toPercentEncoding(noteName);
+        noteName.replace("&lt;", "<");
+        noteName.replace("&gt;", ">");
+        noteName.replace("&amp;", "&");
+        alias.replace("&lt;", "<");
+        alias.replace("&gt;", ">");
+        alias.replace("&amp;", "&");
 
-        QString replacement = QString("<a href=\"internal://%1\">%2</a>").arg(encodedName, displayText);
+        QString displayText = alias.isEmpty() ? noteName : alias;
+        QString encodedName = QString::fromLatin1(QUrl::toPercentEncoding(noteName));
+
+        QString replacement = QString("<a href=\"internal:?note=%1\">%2</a>").arg(encodedName, InlineParser::escapeHtml(displayText));
         html.replace(wikiMatch.capturedStart(0), wikiMatch.capturedLength(0), replacement);
     }
     //粗体

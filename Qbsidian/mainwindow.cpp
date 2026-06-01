@@ -16,6 +16,7 @@
 #include <QVBoxLayout>
 #include <QSettings>
 #include <QDesktopServices>
+#include <QUrlQuery>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QSignalBlocker>
@@ -186,6 +187,7 @@ void MainWindow::applyWindowTheme()
 void MainWindow::applyContentTheme()
 {
     bool dark = (m_themeMode == ThemeMode::Dark);
+    m_fileExplorer->setDarkMode(dark);
     for (NoteTab *tab : m_tabsByPath) {
         tab->preview->setDarkMode(dark);
         tab->preview->showHtml(tab->editor->toPlainText());
@@ -537,7 +539,10 @@ void MainWindow::onAnchorClicked(const QUrl &url)
     }
 
     if (url.scheme() == "internal") {
-        QString noteName = url.host();
+        QUrlQuery query(url);
+        QString noteName = query.queryItemValue("note", QUrl::FullyDecoded);
+        if (noteName.isEmpty())
+            noteName = QUrl::fromPercentEncoding(url.host().toUtf8());
         QString foundPath = m_noteManager->findNotePath(m_vaultPath, noteName);
         if (!foundPath.isEmpty()) {
             openFileInTab(foundPath);
