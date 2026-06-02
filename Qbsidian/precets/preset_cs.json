@@ -1,0 +1,38 @@
+[
+  {
+    "id": "py_001",
+    "subject": "Python",
+    "q": "【对应OJ: 统计字符数】\n在 Python 中，如果需要统计一段长文本中每个字符出现的次数，最简单且最高效的方法是使用哪个内置模块的哪个类？",
+    "a": "最推荐使用 `collections` 模块中的 **`Counter`** 类。\n\n**代码示例**：\n```python\nfrom collections import Counter\ntext = \"hello world\"\ncounts = Counter(text)\nprint(counts['l'])  # 输出: 3\n```\n相比于手写字典去遍历统计，`Counter` 底层用 C 语言优化过，性能更好且代码更 Pythonic。"
+  },
+  {
+    "id": "py_002",
+    "subject": "Python",
+    "q": "【对应OJ: 自定义可哈希可比较类】\n在面向对象编程中，如果想让我们自定义的 Python 类能够作为字典的键（Key）或者存入集合（Set），必须重写哪两个魔术方法（Magic Methods）？",
+    "a": "必须重写 **`__hash__()`** 和 **`__eq__()`** 方法。\n\n**原因解析**：\n字典和集合的底层实现是哈希表。Python 在插入时，首先调用 `__hash__()` 计算对象的哈希值来决定存储位置；如果哈希值冲突，还会调用 `__eq__()` 来判断两个对象是否真正相等。"
+  },
+  {
+    "id": "py_003",
+    "subject": "Python",
+    "q": "【对应OJ: 扑克排序】\n对于复杂的排序逻辑，例如有一个扑克牌列表 `cards = [('Spade', 3), ('Heart', 5), ('Spade', 2)]`，要求先按花色排序，再按数字大小排序。在 Python 中应该如何利用 `sort()` 函数实现？",
+    "a": "可以使用 `sort()` 的 `key` 参数，并传入一个 **`lambda` 函数**，让它返回一个元组。Python 在比较元组时会自动依次对比元素。\n\n**代码示例**：\n```python\ncards.sort(key=lambda x: (x[0], x[1]))\n# x[0]是花色，x[1]是数字\n```"
+  },
+  {
+    "id": "py_004",
+    "subject": "Python",
+    "q": "【对应OJ: 汉诺塔生成器】\n普通函数和生成器（Generator）的核心区别是什么？生成器通常使用什么关键字来返回值？",
+    "a": "1. **执行方式不同**：普通函数执行到 `return` 会一次性返回所有结果并销毁局部变量；生成器可以暂停执行，每次调用时只生成一个值，状态会被保留。\n2. **内存占用不同**：生成器采用“惰性求值”，非常适合处理海量数据或无限序列（比如逐步输出汉诺塔的步骤），不会撑爆内存。\n3. **关键字**：生成器使用 **`yield`** 关键字来返回值。"
+  },
+  {
+    "id": "py_005",
+    "subject": "Python",
+    "q": "【对应OJ: bs4网页分析】\n在使用 `BeautifulSoup` 进行 HTML 解析时，`find()` 和 `find_all()` 方法的区别是什么？",
+    "a": "1. **`find()`**：只返回网页中匹配条件的**第一个**标签对象（Tag）。如果找不到，返回 `None`。\n2. **`find_all()`**：遍历整个网页，返回所有匹配条件的标签，结果封装在一个**列表（ResultSet）**中。如果找不到，返回空列表 `[]`。\n\n*注意：在大型页面中如果只需要找一个特定元素，用 `find()` 效率更高。*"
+  },
+  {
+    "id": "py_006",
+    "subject": "Python",
+    "q": "【对应OJ: 筛选商品】\n如果有一个包含大量商品字典的列表，如何用最 Pythonic 的方式，将价格大于 100 的商品筛选出来？（写出一种方法即可）",
+    "a": "最推荐的方法是使用 **列表推导式 (List Comprehension)**。\n\n**代码示例**：\n```python\nexpensive_items = [item for item in products if item['price'] > 100]\n```\n\n另外一种做法是结合 `filter()` 和 `lambda`：\n```python\nexpensive_items = list(filter(lambda x: x['price'] > 100, products))\n```\n但列表推导式的可读性和执行效率通常更好。"
+  }
+]
