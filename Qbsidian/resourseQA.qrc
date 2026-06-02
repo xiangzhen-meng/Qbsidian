@@ -1,5 +1,5 @@
 <RCC>
     <qresource prefix="/">
-        <file>precets/preset_cs.json</file>
+        <file>presets/preset_cs.json</file>
     </qresource>
 </RCC>

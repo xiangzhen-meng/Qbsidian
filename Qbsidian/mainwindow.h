@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QHash>
 #include <QString>
+#include "ReviewManager.h"
 
 class FileExplorerPane;
 class EditorPane;
@@ -62,11 +63,13 @@ private slots:
     void onTabCloseRequested(int index);
     void onCurrentTabChanged(int index);
     void onReviewItemOpenRequested(const QString &noteId);
-    void onTimelineNotePreviewRequested(const QString &absolutePath);
-    void onTimelineFamiliarRequested(const QString &absolutePath);
-    void onTimelineForgetRequested(const QString &absolutePath);
+    void onTimelineNotePreviewRequested(const ReviewPlanItem &item);
+    void onTimelineRememberedRequested(const ReviewPlanItem &item);
+    void onTimelineForgottenRequested(const ReviewPlanItem &item);
+    void onTimelineStrategyAdjustRequested(const ReviewPlanItem &item);
     void onReviewTimelineRequested();
     void onTimelineNoteDropped(const QString &absolutePath, const QDate &date);
+    void onReviewStrategyRequested(const QString &absolutePath, bool fixedInterval);
 
 private:
     void setupUi();
@@ -90,6 +93,8 @@ private:
     QString buildDarkQss() const;
     void ensureReviewTimelineTab();
     void refreshReviewTimeline();
+    QString promptFixedIntervalStrategy();
+    void applyReviewStrategy(const QString &noteId, const QString &title, const QString &strategyId);
 
     Ui::MainWindow *ui;
     QSplitter *m_splitter;

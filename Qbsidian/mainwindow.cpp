@@ -26,6 +26,13 @@
 #include <QPushButton>
 #include <QDate>
 #include <QTime>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFormLayout>
+#include <QComboBox>
+#include <QLineEdit>
+#include <QCheckBox>
+#include <QHBoxLayout>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -254,6 +261,8 @@ void MainWindow::connectSignals()
             this, &MainWindow::onSearchResultClicked);
     connect(m_fileExplorer, &FileExplorerPane::reviewTimelineRequested,
             this, &MainWindow::onReviewTimelineRequested);
+    connect(m_fileExplorer, &FileExplorerPane::reviewStrategyRequested,
+            this, &MainWindow::onReviewStrategyRequested);
 
     connect(m_tabWidget, &QTabWidget::tabCloseRequested,
             this, &MainWindow::onTabCloseRequested);
@@ -684,51 +693,201 @@ void MainWindow::onReviewItemOpenRequested(const QString &noteId)
     openFileInTab(noteId);
 }
 
-void MainWindow::onTimelineNotePreviewRequested(const QString &absolutePath)
+void MainWindow::onTimelineNotePreviewRequested(const ReviewPlanItem &item)
 {
-    if (!QFileInfo::exists(absolutePath)) {
+    if (!QFileInfo::exists(item.noteId)) {
         QMessageBox::warning(this, tr("文件不存在"),
-            tr("笔记文件 \"%1\" 不存在，可能已被删除。\n\n将从复习计划中移除。").arg(absolutePath));
-        m_reviewManager->removeNoteRecord(absolutePath);
+            tr("笔记文件 \"%1\" 不存在，可能已被删除。\n\n将从复习计划中移除。").arg(item.noteId));
+        m_reviewManager->removeNoteRecord(item.noteId);
         refreshReviewTimeline();
         return;
     }
 
     m_noteManagerHadError = false;
-    QString content = m_noteManager->load(absolutePath);
+    QString content = m_noteManager->load(item.noteId);
     if (m_noteManagerHadError)
         return;
 
     if (m_reviewTimeline)
-        m_reviewTimeline->showPreview(absolutePath, QFileInfo(absolutePath).fileName(), content);
+        m_reviewTimeline->showPreview(item, content);
 }
 
-void MainWindow::onTimelineFamiliarRequested(const QString &absolutePath)
+void MainWindow::onTimelineRememberedRequested(const ReviewPlanItem &item)
+{
+    QFileInfo info(item.noteId);
+    if (!info.exists() || !info.isFile())
+        return;
+
+    if (item.source == ReviewPlanItemSource::ManualSchedule) {
+        m_reviewManager->removeManualSchedule(item.id);
+        ui->statusbar->showMessage(tr("已完成手动复习: %1").arg(info.completeBaseName()));
+    } else {
+        m_reviewManager->processReviewFeedback(item.noteId, true);
+        ui->statusbar->showMessage(tr("已按当前策略安排下次复习: %1").arg(info.completeBaseName()));
+    }
+
+    refreshReviewTimeline();
+    if (m_reviewTimeline)
+        m_reviewTimeline->clearPreview();
+}
+
+void MainWindow::onTimelineForgottenRequested(const ReviewPlanItem &item)
+{
+    QFileInfo info(item.noteId);
+    if (!info.exists() || !info.isFile())
+        return;
+
+    if (item.source == ReviewPlanItemSource::ManualSchedule) {
+        m_reviewManager->removeManualSchedule(item.id);
+        m_reviewManager->addManualReviewSchedule(item.noteId, info.completeBaseName(),
+            QDateTime(QDate::currentDate().addDays(1), QTime(9, 0)));
+        ui->statusbar->showMessage(tr("已安排明天再次手动复习: %1").arg(info.completeBaseName()));
+    } else {
+        m_reviewManager->processReviewFeedback(item.noteId, false);
+        ui->statusbar->showMessage(tr("已按当前策略重新安排复习: %1").arg(info.completeBaseName()));
+    }
+
+    refreshReviewTimeline();
+    if (m_reviewTimeline)
+        m_reviewTimeline->clearPreview();
+}
+
+void MainWindow::onTimelineStrategyAdjustRequested(const ReviewPlanItem &item)
+{
+    QFileInfo info(item.noteId);
+    if (!info.exists() || !info.isFile())
+        return;
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("调整复习策略"));
+
+    QFormLayout *layout = new QFormLayout(&dialog);
+    layout->setVerticalSpacing(12);
+    QComboBox *strategyCombo = new QComboBox(&dialog);
+    strategyCombo->setStyleSheet(
+        "QComboBox { padding: 6px 10px; min-height: 32px; }"
+        "QComboBox QAbstractItemView::item { min-height: 34px; padding: 6px 10px; }"
+    );
+    strategyCombo->addItem(tr("仅当天"), QStringLiteral("manual"));
+    strategyCombo->addItem(tr("艾宾浩斯"), QStringLiteral("standard_ebbinghaus"));
+    strategyCombo->addItem(tr("固定间隔 + 休息日"), QStringLiteral("custom"));
+    layout->addRow(tr("策略"), strategyCombo);
+
+    QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    layout->addRow(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    QString strategyId = strategyCombo->currentData().toString();
+    QString title = info.completeBaseName();
+    if (strategyId == QStringLiteral("manual")) {
+        if (item.source == ReviewPlanItemSource::Strategy) {
+            m_reviewManager->removeStrategyReviewRecord(item.noteId);
+            QDateTime reviewTime = item.reviewTime.isValid() ? item.reviewTime : QDateTime(QDate::currentDate(), QTime(9, 0));
+            m_reviewManager->addManualReviewSchedule(item.noteId, title, reviewTime);
+        }
+        refreshReviewTimeline();
+        ui->statusbar->showMessage(tr("已设为仅当天复习: %1").arg(title));
+        return;
+    }
+
+    if (strategyId == QStringLiteral("custom")) {
+        strategyId = promptFixedIntervalStrategy();
+        if (strategyId.isEmpty())
+            return;
+    }
+
+    if (item.source == ReviewPlanItemSource::ManualSchedule)
+        m_reviewManager->removeManualSchedule(item.id);
+    applyReviewStrategy(item.noteId, title, strategyId);
+    refreshReviewTimeline();
+    ui->statusbar->showMessage(tr("已调整复习策略: %1").arg(title));
+}
+
+QString MainWindow::promptFixedIntervalStrategy()
+{
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("固定间隔策略"));
+
+    QFormLayout *layout = new QFormLayout(&dialog);
+    layout->setVerticalSpacing(12);
+    QLineEdit *intervalEdit = new QLineEdit(QStringLiteral("1,3,7,15,30"), &dialog);
+    layout->addRow(tr("间隔天数"), intervalEdit);
+
+    QWidget *restDaysWidget = new QWidget(&dialog);
+    QHBoxLayout *restDaysLayout = new QHBoxLayout(restDaysWidget);
+    restDaysLayout->setContentsMargins(0, 0, 0, 0);
+    restDaysLayout->setSpacing(10);
+    QList<QCheckBox *> restDayChecks;
+    const QStringList dayNames = { tr("一"), tr("二"), tr("三"), tr("四"), tr("五"), tr("六"), tr("日") };
+    for (int i = 0; i < dayNames.size(); ++i) {
+        QCheckBox *check = new QCheckBox(dayNames.at(i), restDaysWidget);
+        check->setProperty("day", i + 1);
+        restDayChecks.append(check);
+        restDaysLayout->addWidget(check);
+    }
+    layout->addRow(tr("休息日"), restDaysWidget);
+
+    QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    layout->addRow(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if (dialog.exec() != QDialog::Accepted)
+        return QString();
+
+    QList<int> intervals;
+    const QStringList parts = intervalEdit->text().split(',', Qt::SkipEmptyParts);
+    for (const QString &part : parts) {
+        bool ok = false;
+        int interval = part.trimmed().toInt(&ok);
+        if (!ok || interval <= 0) {
+            QMessageBox::warning(this, tr("间隔无效"), tr("间隔天数必须是用逗号分隔的正整数。"));
+            return QString();
+        }
+        intervals.append(interval);
+    }
+    if (intervals.isEmpty()) {
+        QMessageBox::warning(this, tr("间隔无效"), tr("请至少输入一个间隔天数。"));
+        return QString();
+    }
+
+    QList<int> restDays;
+    for (QCheckBox *check : restDayChecks) {
+        if (check->isChecked())
+            restDays.append(check->property("day").toInt());
+    }
+
+    return m_reviewManager->createCustomStrategy(tr("固定间隔 %1").arg(intervalEdit->text()), intervals, restDays);
+}
+
+void MainWindow::applyReviewStrategy(const QString &noteId, const QString &title, const QString &strategyId)
+{
+    if (m_reviewManager->hasReviewRecord(noteId))
+        m_reviewManager->changeNoteStrategy(noteId, strategyId);
+    else
+        m_reviewManager->addNoteToReview(noteId, title, strategyId);
+}
+
+void MainWindow::onReviewStrategyRequested(const QString &absolutePath, bool fixedInterval)
 {
     QFileInfo info(absolutePath);
     if (!info.exists() || !info.isFile())
         return;
 
-    m_reviewManager->addManualReviewSchedule(absolutePath, info.completeBaseName(),
-        QDateTime(QDate::currentDate().addDays(5), QTime(9, 0)));
-    refreshReviewTimeline();
-    if (m_reviewTimeline)
-        m_reviewTimeline->clearPreview();
-    ui->statusbar->showMessage(tr("已安排 5 天后复习: %1").arg(info.completeBaseName()));
-}
+    QString strategyId = QStringLiteral("standard_ebbinghaus");
+    if (fixedInterval) {
+        strategyId = promptFixedIntervalStrategy();
+        if (strategyId.isEmpty())
+            return;
+    }
 
-void MainWindow::onTimelineForgetRequested(const QString &absolutePath)
-{
-    QFileInfo info(absolutePath);
-    if (!info.exists() || !info.isFile())
-        return;
-
-    m_reviewManager->addManualReviewSchedule(absolutePath, info.completeBaseName(),
-        QDateTime(QDate::currentDate().addDays(1), QTime(9, 0)));
+    applyReviewStrategy(absolutePath, info.completeBaseName(), strategyId);
     refreshReviewTimeline();
-    if (m_reviewTimeline)
-        m_reviewTimeline->clearPreview();
-    ui->statusbar->showMessage(tr("已安排明天复习: %1").arg(info.completeBaseName()));
+    ui->statusbar->showMessage(tr("已加入复习计划: %1").arg(info.completeBaseName()));
 }
 
 void MainWindow::onReviewTimelineRequested()
@@ -771,10 +930,12 @@ void MainWindow::ensureReviewTimelineTab()
             this, &MainWindow::onReviewItemOpenRequested);
     connect(m_reviewTimeline, &ReviewTimelinePane::notePreviewRequested,
             this, &MainWindow::onTimelineNotePreviewRequested);
-    connect(m_reviewTimeline, &ReviewTimelinePane::familiarRequested,
-            this, &MainWindow::onTimelineFamiliarRequested);
-    connect(m_reviewTimeline, &ReviewTimelinePane::forgetRequested,
-            this, &MainWindow::onTimelineForgetRequested);
+    connect(m_reviewTimeline, &ReviewTimelinePane::rememberedRequested,
+            this, &MainWindow::onTimelineRememberedRequested);
+    connect(m_reviewTimeline, &ReviewTimelinePane::forgottenRequested,
+            this, &MainWindow::onTimelineForgottenRequested);
+    connect(m_reviewTimeline, &ReviewTimelinePane::strategyAdjustRequested,
+            this, &MainWindow::onTimelineStrategyAdjustRequested);
 }
 
 void MainWindow::refreshReviewTimeline()
