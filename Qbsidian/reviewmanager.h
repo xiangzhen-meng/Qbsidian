@@ -15,6 +15,21 @@ struct ManualReviewSchedule {
     QDateTime reviewDateTime;
 };
 
+enum class ReviewPlanItemSource {
+    Strategy = 0,
+    ManualSchedule = 1
+};
+
+struct ReviewPlanItem {
+    QString id;
+    QString noteId;
+    QString noteTitle;
+    QDateTime reviewTime;
+    ReviewPlanItemSource source = ReviewPlanItemSource::Strategy;
+    int userPriority = 0;
+    int reviewCount = 0;
+};
+
 class ReviewManager {
 private:
     QMap<QString, ReviewEntity> m_noteEntities;       // 内存中的所有笔记复习数据 (Key: noteId)
@@ -31,13 +46,14 @@ public:
 
     // ---------------- 策略管理接口 ----------------
     void registerStrategy(IReviewStrategy* strategy);
-    void createCustomStrategy(const QString& name, const QList<int>& intervals, const QList<int>& restDays);
+    QString createCustomStrategy(const QString& name, const QList<int>& intervals, const QList<int>& restDays);
     void deleteCustomStrategy(const QString& strategyId);
     QList<QString> getAllStrategyNames() const;
 
     // ---------------- 笔记状态交互接口 ----------------
     // 新增笔记进入复习流
     void addNoteToReview(const QString& noteId, const QString& title, const QString& strategyId, const QString& anchor = "");
+    bool hasReviewRecord(const QString& noteId) const;
 
     // 修改笔记绑定的策略
     void changeNoteStrategy(const QString& noteId, const QString& newStrategyId);
@@ -56,9 +72,11 @@ public:
      * @return 按“用户优先级降序 -> 逾期时间降序”排好序的待办列表
      */
     QList<ReviewEntity> generateDailyPlan(int maxDailyLimit = 50);
-    QList<ReviewEntity> reviewPlanBetween(const QDate& start, const QDate& end) const;
+    QList<ReviewPlanItem> reviewPlanBetween(const QDate& start, const QDate& end) const;
     void addManualReviewSchedule(const QString& notePath, const QString& noteTitle, const QDateTime& reviewDateTime);
+    void removeManualSchedule(const QString& scheduleId);
     void removeManualSchedulesForNote(const QString& notePath);
+    void removeStrategyReviewRecord(const QString& noteId);
 
     /**
      * @brief 用户在 UI 点了“认识/不认识”后调用此接口更新状态

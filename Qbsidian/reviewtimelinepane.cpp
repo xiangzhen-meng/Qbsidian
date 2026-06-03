@@ -7,6 +7,7 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QMimeData>
 #include <QPushButton>
 #include <QScrollArea>
@@ -16,6 +17,18 @@
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QScrollBar>
+
+ReviewNoteButton::ReviewNoteButton(const ReviewPlanItem &item, QWidget *parent)
+    : QPushButton(item.noteTitle.isEmpty() ? QFileInfo(item.noteId).completeBaseName() : item.noteTitle, parent)
+    , m_item(item)
+{
+}
+
+void ReviewNoteButton::mouseDoubleClickEvent(QMouseEvent *event)
+{
+    emit doubleClicked(m_item);
+    QPushButton::mouseDoubleClickEvent(event);
+}
 
 ReviewTimelineNode::ReviewTimelineNode(const QDate &date, QWidget *parent)
     : QWidget(parent)
@@ -66,7 +79,7 @@ QDate ReviewTimelineNode::date() const
     return m_date;
 }
 
-void ReviewTimelineNode::setReviews(const QList<ReviewEntity> &reviews)
+void ReviewTimelineNode::setReviews(const QList<ReviewPlanItem> &reviews)
 {
     m_reviewCount = reviews.size();
     while (QLayoutItem *item = m_notesLayout->takeAt(0)) {
@@ -75,15 +88,18 @@ void ReviewTimelineNode::setReviews(const QList<ReviewEntity> &reviews)
     }
 
     m_notesLayout->addStretch(1);
-    for (const ReviewEntity &entity : reviews) {
-        QPushButton *noteButton = new QPushButton(entity.noteTitle.isEmpty() ? QFileInfo(entity.noteId).completeBaseName() : entity.noteTitle, this);
+    for (const ReviewPlanItem &item : reviews) {
+        ReviewNoteButton *noteButton = new ReviewNoteButton(item, this);
         noteButton->setObjectName("timelineNoteButton");
-        noteButton->setToolTip(entity.noteId);
+        noteButton->setToolTip(item.noteId);
         noteButton->setCursor(Qt::PointingHandCursor);
         noteButton->setFixedHeight(36);
         noteButton->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-        connect(noteButton, &QPushButton::clicked, this, [this, entity]() {
-            emit notePreviewRequested(entity.noteId);
+        connect(noteButton, &QPushButton::clicked, this, [this, item]() {
+            emit notePreviewRequested(item);
+        });
+        connect(noteButton, &ReviewNoteButton::doubleClicked, this, [this](const ReviewPlanItem &clickedItem) {
+            emit noteOpenRequested(clickedItem.noteId);
         });
         m_notesLayout->addWidget(noteButton);
     }
@@ -181,9 +197,9 @@ ReviewTimelinePane::ReviewTimelinePane(QWidget *parent)
     , m_timelineLayout(nullptr)
     , m_emptyLabel(nullptr)
     , m_preview(nullptr)
-    , m_openButton(nullptr)
-    , m_familiarButton(nullptr)
+    , m_rememberButton(nullptr)
     , m_forgetButton(nullptr)
+    , m_strategyButton(nullptr)
 {
     QHBoxLayout *rootLayout = new QHBoxLayout(this);
     rootLayout->setContentsMargins(24, 22, 24, 22);
@@ -234,15 +250,15 @@ ReviewTimelinePane::ReviewTimelinePane(QWidget *parent)
     QHBoxLayout *buttonLayout = new QHBoxLayout(buttonBar);
     buttonLayout->setContentsMargins(0, 0, 0, 0);
     buttonLayout->setSpacing(8);
-    m_openButton = new QPushButton(tr("打开"), buttonBar);
-    m_familiarButton = new QPushButton(tr("熟悉"), buttonBar);
+    m_rememberButton = new QPushButton(tr("记住"), buttonBar);
     m_forgetButton = new QPushButton(tr("忘记"), buttonBar);
-    m_openButton->setObjectName("timelineOpenButton");
-    m_familiarButton->setObjectName("timelineFamiliarButton");
+    m_strategyButton = new QPushButton(tr("调整策略"), buttonBar);
+    m_rememberButton->setObjectName("timelineRememberButton");
     m_forgetButton->setObjectName("timelineForgetButton");
-    buttonLayout->addWidget(m_openButton);
-    buttonLayout->addWidget(m_familiarButton);
+    m_strategyButton->setObjectName("timelineStrategyButton");
+    buttonLayout->addWidget(m_rememberButton);
     buttonLayout->addWidget(m_forgetButton);
+    buttonLayout->addWidget(m_strategyButton);
 
     previewLayout->addWidget(m_preview, 1);
     previewLayout->addWidget(buttonBar);
@@ -256,17 +272,17 @@ ReviewTimelinePane::ReviewTimelinePane(QWidget *parent)
     rootLayout->addWidget(divider);
     rootLayout->addWidget(previewPanel, 5);
 
-    connect(m_openButton, &QPushButton::clicked, this, [this]() {
+    connect(m_rememberButton, &QPushButton::clicked, this, [this]() {
         if (!m_selectedNotePath.isEmpty())
-            emit noteOpenRequested(m_selectedNotePath);
-    });
-    connect(m_familiarButton, &QPushButton::clicked, this, [this]() {
-        if (!m_selectedNotePath.isEmpty())
-            emit familiarRequested(m_selectedNotePath);
+            emit rememberedRequested(m_selectedItem);
     });
     connect(m_forgetButton, &QPushButton::clicked, this, [this]() {
         if (!m_selectedNotePath.isEmpty())
-            emit forgetRequested(m_selectedNotePath);
+            emit forgottenRequested(m_selectedItem);
+    });
+    connect(m_strategyButton, &QPushButton::clicked, this, [this]() {
+        if (!m_selectedNotePath.isEmpty())
+            emit strategyAdjustRequested(m_selectedItem);
     });
     updateReviewButtons();
 
@@ -284,9 +300,9 @@ ReviewTimelinePane::ReviewTimelinePane(QWidget *parent)
         "QLabel#timelineNodeDot[hasReviews=\"true\"] { color: rgba(46,128,242,0.65); }"
         "QPushButton#timelineNoteButton { background: rgba(46,128,242,0.12); color: palette(text); border: 1px solid rgba(46,128,242,0.25); border-radius: 8px; padding: 6px 10px; text-align: left; font-weight: 600; font-size: 13px; }"
         "QPushButton#timelineNoteButton:hover { background: rgba(46,128,242,0.22); border-color: #2e80f2; }"
-        "QPushButton#timelineOpenButton { background: transparent; color: palette(text); border: 1px solid rgba(128,128,128,0.28); border-radius: 7px; padding: 7px 10px; }"
-        "QPushButton#timelineFamiliarButton { background: #34c759; color: #ffffff; border: none; border-radius: 7px; padding: 7px 10px; font-weight: 600; }"
+        "QPushButton#timelineRememberButton { background: #34c759; color: #ffffff; border: none; border-radius: 7px; padding: 7px 10px; font-weight: 600; }"
         "QPushButton#timelineForgetButton { background: #ff3b30; color: #ffffff; border: none; border-radius: 7px; padding: 7px 10px; font-weight: 600; }"
+        "QPushButton#timelineStrategyButton { background: transparent; color: palette(text); border: 1px solid rgba(128,128,128,0.28); border-radius: 7px; padding: 7px 10px; }"
         "QPushButton:disabled { background: rgba(128,128,128,0.18); color: rgba(128,128,128,0.65); border: none; }"
     );
 }
@@ -301,7 +317,7 @@ QDate ReviewTimelinePane::endDate() const
     return startDate().addDays(30);
 }
 
-void ReviewTimelinePane::setReviewPlan(const QList<ReviewEntity> &reviews)
+void ReviewTimelinePane::setReviewPlan(const QList<ReviewPlanItem> &reviews)
 {
     m_reviews = reviews;
     rebuildNodes();
@@ -309,7 +325,7 @@ void ReviewTimelinePane::setReviewPlan(const QList<ReviewEntity> &reviews)
 
 void ReviewTimelinePane::rebuildNodes()
 {
-    QMap<QDate, QList<ReviewEntity>> grouped = groupedReviews();
+    QMap<QDate, QList<ReviewPlanItem>> grouped = groupedReviews();
     m_emptyLabel->setVisible(m_reviews.isEmpty());
 
     ensureNodes();
@@ -318,10 +334,10 @@ void ReviewTimelinePane::rebuildNodes()
         node->setReviews(grouped.value(node->date()));
 }
 
-void ReviewTimelinePane::updateContentHeight(const QMap<QDate, QList<ReviewEntity>> &grouped)
+void ReviewTimelinePane::updateContentHeight(const QMap<QDate, QList<ReviewPlanItem>> &grouped)
 {
     int maxCount = 0;
-    for (const QList<ReviewEntity> &reviews : grouped)
+    for (const QList<ReviewPlanItem> &reviews : grouped)
         maxCount = qMax(maxCount, reviews.size());
 
     int minHeight = 140 + qMax(0, maxCount) * 52;
@@ -353,10 +369,10 @@ void ReviewTimelinePane::ensureNodes()
     }
 }
 
-void ReviewTimelinePane::showPreview(const QString &absolutePath, const QString &title, const QString &markdown)
+void ReviewTimelinePane::showPreview(const ReviewPlanItem &item, const QString &markdown)
 {
-    Q_UNUSED(title)
-    m_selectedNotePath = absolutePath;
+    m_selectedNotePath = item.noteId;
+    m_selectedItem = item;
     m_preview->showHtml(markdown);
     m_preview->verticalScrollBar()->setValue(0);
     updateReviewButtons();
@@ -365,6 +381,7 @@ void ReviewTimelinePane::showPreview(const QString &absolutePath, const QString 
 void ReviewTimelinePane::clearPreview()
 {
     m_selectedNotePath.clear();
+    m_selectedItem = ReviewPlanItem();
     m_preview->setHtml(tr("<div style='color:#8a8a8a;padding:24px;'>点击左侧时间轴上的笔记卡片进行预览。</div>"));
     updateReviewButtons();
 }
@@ -372,9 +389,9 @@ void ReviewTimelinePane::clearPreview()
 void ReviewTimelinePane::updateReviewButtons()
 {
     bool hasSelection = !m_selectedNotePath.isEmpty();
-    m_openButton->setEnabled(hasSelection);
-    m_familiarButton->setEnabled(hasSelection);
+    m_rememberButton->setEnabled(hasSelection);
     m_forgetButton->setEnabled(hasSelection);
+    m_strategyButton->setEnabled(hasSelection);
 }
 
 void ReviewTimelinePane::clearNodes()
@@ -386,10 +403,10 @@ void ReviewTimelinePane::clearNodes()
     m_nodes.clear();
 }
 
-QMap<QDate, QList<ReviewEntity>> ReviewTimelinePane::groupedReviews() const
+QMap<QDate, QList<ReviewPlanItem>> ReviewTimelinePane::groupedReviews() const
 {
-    QMap<QDate, QList<ReviewEntity>> grouped;
-    for (const ReviewEntity &entity : m_reviews)
-        grouped[entity.nextReviewTime.date()].append(entity);
+    QMap<QDate, QList<ReviewPlanItem>> grouped;
+    for (const ReviewPlanItem &item : m_reviews)
+        grouped[item.reviewTime.date()].append(item);
     return grouped;
 }

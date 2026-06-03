@@ -1,4 +1,4 @@
-#include "ReviewStrategy.h"
+#include "reviewstrategy.h"
 #include <QDate>
 
 // ==========================================
@@ -51,9 +51,9 @@ QDateTime CustomStrategy::calculateNextTime(const QDateTime& lastReview, int cur
         if (m_intervals.isEmpty()) {
             daysToAdd = 1;
         } else {
-            // 根据复习次数去 intervals 数组里取间隔天数
-            // 如果复习次数超过了数组长度，就一直使用数组的最后一位（比如最高间隔30天）
-            int index = qMin(currentCount, (int)m_intervals.size() - 1);
+            // 根据成功复习次数取间隔：第一次成功后使用第一个间隔。
+            int index = qMax(0, currentCount - 1);
+            index = qMin(index, (int)m_intervals.size() - 1);
             daysToAdd = m_intervals[index];
         }
     }

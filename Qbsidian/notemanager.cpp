@@ -61,7 +61,11 @@ QString NoteManager::load(const QString &absoluteFilePath)
 
     // 3. 以 UTF-8 读取
     QTextStream in(&file);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     in.setEncoding(QStringConverter::Utf8);
+#else
+    in.setCodec("UTF-8");
+#endif
 
     QString content = in.readAll();
     file.close();
@@ -135,7 +139,11 @@ QVector<SearchResult> NoteManager::searchInVault(const QString &directory, const
         if (file.open(QIODevice::ReadOnly | QIODevice::Text))
         {
             QTextStream in(&file);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
             in.setEncoding(QStringConverter::Utf8);
+#else
+            in.setCodec("UTF-8");
+#endif
 
             int lineNum = 1;
             // 匹配

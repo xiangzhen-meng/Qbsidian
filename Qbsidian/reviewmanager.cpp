@@ -171,12 +171,13 @@ void ReviewManager::registerStrategy(IReviewStrategy* strategy) {
     m_strategies.insert(strategy->getStrategyId(), strategy);
 }
 
-void ReviewManager::createCustomStrategy(const QString& name, const QList<int>& intervals, const QList<int>& restDays) {
+QString ReviewManager::createCustomStrategy(const QString& name, const QList<int>& intervals, const QList<int>& restDays) {
     // 生成一个基于时间戳的唯一ID
     QString id = QString("custom_%1").arg(QDateTime::currentMSecsSinceEpoch());
     CustomStrategy* newStrat = new CustomStrategy(id, name, intervals, restDays);
     registerStrategy(newStrat);
     saveData();
+    return id;
 }
 
 void ReviewManager::deleteCustomStrategy(const QString& strategyId) {
@@ -225,15 +226,22 @@ void ReviewManager::addNoteToReview(const QString& noteId, const QString& title,
     saveData();
 }
 
+bool ReviewManager::hasReviewRecord(const QString& noteId) const {
+    return m_noteEntities.contains(noteId);
+}
+
 void ReviewManager::changeNoteStrategy(const QString& noteId, const QString& newStrategyId) {
     if (!m_noteEntities.contains(noteId) || !m_strategies.contains(newStrategyId)) return;
 
     ReviewEntity& entity = m_noteEntities[noteId];
     entity.strategyId = newStrategyId;
+    entity.reviewCount = 0;
+    entity.lastReviewTime = QDateTime();
+    entity.status = NoteStatus::Learning;
 
-    // 切换策略后，依据上次复习时间，用新策略重新计算下次复习时间
+    // 切换策略后，从新策略的第一个周期重新开始。
     IReviewStrategy* strat = m_strategies.value(newStrategyId);
-    entity.nextReviewTime = strat->calculateNextTime(entity.lastReviewTime, entity.reviewCount, true);
+    entity.nextReviewTime = strat->calculateNextTime(QDateTime::currentDateTime(), entity.reviewCount, true);
 
     saveData();
 }
@@ -296,16 +304,25 @@ QList<ReviewEntity> ReviewManager::generateDailyPlan(int maxDailyLimit) {
     return dueList;
 }
 
-QList<ReviewEntity> ReviewManager::reviewPlanBetween(const QDate& start, const QDate& end) const {
-    QList<ReviewEntity> plan;
+QList<ReviewPlanItem> ReviewManager::reviewPlanBetween(const QDate& start, const QDate& end) const {
+    QList<ReviewPlanItem> plan;
 
     for (const auto& entity : m_noteEntities.values()) {
         if (entity.status != NoteStatus::Learning || !entity.nextReviewTime.isValid())
             continue;
 
         QDate reviewDate = entity.nextReviewTime.date();
-        if (reviewDate >= start && reviewDate <= end)
-            plan.append(entity);
+        if (reviewDate >= start && reviewDate <= end) {
+            ReviewPlanItem item;
+            item.id = entity.noteId;
+            item.noteId = entity.noteId;
+            item.noteTitle = entity.noteTitle;
+            item.reviewTime = entity.nextReviewTime;
+            item.source = ReviewPlanItemSource::Strategy;
+            item.userPriority = entity.userPriority;
+            item.reviewCount = entity.reviewCount;
+            plan.append(item);
+        }
     }
 
     for (const ManualReviewSchedule &schedule : m_manualSchedules) {
@@ -313,17 +330,18 @@ QList<ReviewEntity> ReviewManager::reviewPlanBetween(const QDate& start, const Q
         if (reviewDate < start || reviewDate > end)
             continue;
 
-        ReviewEntity entity;
-        entity.noteId = schedule.notePath;
-        entity.noteTitle = schedule.noteTitle.isEmpty() ? QFileInfo(schedule.notePath).completeBaseName() : schedule.noteTitle;
-        entity.nextReviewTime = schedule.reviewDateTime;
-        entity.status = NoteStatus::Learning;
-        plan.append(entity);
+        ReviewPlanItem item;
+        item.id = schedule.id;
+        item.noteId = schedule.notePath;
+        item.noteTitle = schedule.noteTitle.isEmpty() ? QFileInfo(schedule.notePath).completeBaseName() : schedule.noteTitle;
+        item.reviewTime = schedule.reviewDateTime;
+        item.source = ReviewPlanItemSource::ManualSchedule;
+        plan.append(item);
     }
 
-    std::sort(plan.begin(), plan.end(), [](const ReviewEntity& a, const ReviewEntity& b) {
-        if (a.nextReviewTime.date() != b.nextReviewTime.date())
-            return a.nextReviewTime < b.nextReviewTime;
+    std::sort(plan.begin(), plan.end(), [](const ReviewPlanItem& a, const ReviewPlanItem& b) {
+        if (a.reviewTime.date() != b.reviewTime.date())
+            return a.reviewTime < b.reviewTime;
         if (a.userPriority != b.userPriority)
             return a.userPriority > b.userPriority;
         return a.noteTitle.compare(b.noteTitle, Qt::CaseInsensitive) < 0;
@@ -350,6 +368,19 @@ void ReviewManager::addManualReviewSchedule(const QString& notePath, const QStri
     saveData();
 }
 
+void ReviewManager::removeManualSchedule(const QString& scheduleId) {
+    if (scheduleId.isEmpty())
+        return;
+
+    for (int i = 0; i < m_manualSchedules.size(); ++i) {
+        if (m_manualSchedules.at(i).id == scheduleId) {
+            m_manualSchedules.removeAt(i);
+            saveData();
+            return;
+        }
+    }
+}
+
 void ReviewManager::removeManualSchedulesForNote(const QString& notePath) {
     bool removed = false;
     for (int i = m_manualSchedules.size() - 1; i >= 0; --i) {
@@ -360,6 +391,11 @@ void ReviewManager::removeManualSchedulesForNote(const QString& notePath) {
     }
 
     if (removed)
+        saveData();
+}
+
+void ReviewManager::removeStrategyReviewRecord(const QString& noteId) {
+    if (m_noteEntities.remove(noteId) > 0)
         saveData();
 }
 
@@ -382,6 +418,15 @@ void ReviewManager::processReviewFeedback(const QString& noteId, bool isRemember
 
     // 2. 调度策略，推导下一次时间
     IReviewStrategy* strat = m_strategies.value(entity.strategyId, m_strategies.value("standard_ebbinghaus"));
+    CustomStrategy *customStrat = dynamic_cast<CustomStrategy *>(strat);
+    if (isRemembered && customStrat && !customStrat->getIntervals().isEmpty()
+        && entity.reviewCount > customStrat->getIntervals().size()) {
+        entity.status = NoteStatus::Mastered;
+        entity.nextReviewTime = QDateTime();
+        saveData();
+        return;
+    }
+
     entity.nextReviewTime = strat->calculateNextTime(now, entity.reviewCount, isRemembered);
 
     saveData(); // 状态发生改变，立即存盘
