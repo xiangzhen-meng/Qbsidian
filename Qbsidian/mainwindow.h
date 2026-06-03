@@ -73,6 +73,7 @@ private slots:
     void onTimelineNoteDropped(const QString &absolutePath, const QDate &date);
     void onTimelineManualScheduleDropped(const QString &scheduleId, const QDate &date);
     void onReviewStrategyRequested(const QString &absolutePath, bool fixedInterval);
+    void onPracticeRequested();
 
 private:
     void setupUi();

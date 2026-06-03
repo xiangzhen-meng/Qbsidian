@@ -70,6 +70,7 @@ public:
     void setNoteManager(NoteManager *manager);
     QString rootPath() const;
     void setReviewButtonChecked(bool checked);
+    void setPracticeButtonChecked(bool checked);
     void setDarkMode(bool dark);
 
 signals:
@@ -80,6 +81,7 @@ signals:
     void searchResultClicked(const QString &filePath, int lineNumber);
     void reviewTimelineRequested();
     void reviewStrategyRequested(const QString &absoluteFilePath, bool fixedInterval);
+    void practiceRequested();
 
 private slots:
     void onItemClicked(const QModelIndex &index);
@@ -95,6 +97,7 @@ private:
     QPushButton *m_filesButton;
     QPushButton *m_searchButton;
     QPushButton *m_reviewButton;
+    QPushButton *m_practiceButton;
     QTreeView *m_treeView;
     QListWidget *m_searchResults;
     QFileSystemModel *m_model;

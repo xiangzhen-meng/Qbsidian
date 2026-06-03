@@ -174,6 +174,7 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     , m_filesButton(nullptr)
     , m_searchButton(nullptr)
     , m_reviewButton(nullptr)
+    , m_practiceButton(nullptr)
     , m_treeView(nullptr)
     , m_searchResults(nullptr)
     , m_model(nullptr)
@@ -194,25 +195,31 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     m_filesButton = new QPushButton(tr("文件"), navBar);
     m_searchButton = new QPushButton(tr("搜索"), navBar);
     m_reviewButton = new QPushButton(tr("复习"), navBar);
+    m_practiceButton = new QPushButton(tr("练习"), navBar);
     m_filesButton->setCheckable(true);
     m_searchButton->setCheckable(true);
     m_reviewButton->setCheckable(true);
+    m_practiceButton->setCheckable(true);
     m_filesButton->setChecked(true);
     m_filesButton->setFixedSize(52, 24);
     m_searchButton->setFixedSize(52, 24);
     m_reviewButton->setFixedSize(52, 24);
+    m_practiceButton->setFixedSize(52, 24);
     QString navButtonStyle =
         "QPushButton { padding: 2px 6px; font-size: 12px; font-weight: 600; border-radius: 5px; }"
         "QPushButton:checked { background-color: #81a1c1; color: #ffffff; }";
     m_filesButton->setStyleSheet(navButtonStyle);
     m_searchButton->setStyleSheet(navButtonStyle);
     m_reviewButton->setStyleSheet(navButtonStyle);
+    m_practiceButton->setStyleSheet(navButtonStyle);
     m_filesButton->setToolTip(tr("文件树"));
     m_searchButton->setToolTip(tr("搜索"));
     m_reviewButton->setToolTip(tr("复习"));
+    m_practiceButton->setToolTip(tr("题目抽查练习"));
     navLayout->addWidget(m_filesButton);
     navLayout->addWidget(m_searchButton);
     navLayout->addWidget(m_reviewButton);
+    navLayout->addWidget(m_practiceButton);
     navLayout->addStretch();
     rootLayout->addWidget(navBar);
 
@@ -318,12 +325,14 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
         m_filesButton->setChecked(true);
         m_searchButton->setChecked(false);
         m_reviewButton->setChecked(false);
+        m_practiceButton->setChecked(false);
     });
     connect(m_searchButton, &QPushButton::clicked, this, [this, searchPage]() {
         m_stack->setCurrentWidget(searchPage);
         m_filesButton->setChecked(false);
         m_searchButton->setChecked(true);
         m_reviewButton->setChecked(false);
+        m_practiceButton->setChecked(false);
         m_searchBox->setFocus();
     });
     connect(m_reviewButton, &QPushButton::clicked, this, [this]() {
@@ -331,7 +340,16 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
         m_filesButton->setChecked(false);
         m_searchButton->setChecked(false);
         m_reviewButton->setChecked(true);
+        m_practiceButton->setChecked(false);
         emit reviewTimelineRequested();
+    });
+    connect(m_practiceButton, &QPushButton::clicked, this, [this]() {
+        m_stack->setCurrentIndex(0);
+        m_filesButton->setChecked(false);
+        m_searchButton->setChecked(false);
+        m_reviewButton->setChecked(false);
+        m_practiceButton->setChecked(true);
+        emit practiceRequested();
     });
 
     connect(btnNewNote, &QPushButton::clicked, this, [this]() {
@@ -520,6 +538,17 @@ void FileExplorerPane::setReviewButtonChecked(bool checked)
     if (checked) {
         m_filesButton->setChecked(false);
         m_searchButton->setChecked(false);
+        m_practiceButton->setChecked(false);
+    }
+}
+
+void FileExplorerPane::setPracticeButtonChecked(bool checked)
+{
+    m_practiceButton->setChecked(checked);
+    if (checked) {
+        m_filesButton->setChecked(false);
+        m_searchButton->setChecked(false);
+        m_reviewButton->setChecked(false);
     }
 }
 
