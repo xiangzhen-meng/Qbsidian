@@ -4,6 +4,7 @@
         <file>markdown.svg</file>
         <file>new-file.svg</file>
         <file>new-folder.svg</file>
+        <file>graph.svg</file>
         <file>trash.svg</file>
         <file>save.svg</file>
     </qresource>

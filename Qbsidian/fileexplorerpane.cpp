@@ -175,6 +175,7 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     , m_searchButton(nullptr)
     , m_reviewButton(nullptr)
     , m_practiceButton(nullptr)
+    , m_graphButton(nullptr)
     , m_treeView(nullptr)
     , m_searchResults(nullptr)
     , m_model(nullptr)
@@ -252,6 +253,16 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     btnNewFolder->setStyleSheet("background: transparent; border: none;");
     toolbarLayout->addWidget(btnNewNote);
     toolbarLayout->addWidget(btnNewFolder);
+
+    m_graphButton = new QPushButton(toolbar);
+    m_graphButton->setFixedSize(20, 20);
+    m_graphButton->setIcon(QIcon(":/icons/graph.svg"));
+    m_graphButton->setIconSize(QSize(20, 20));
+    m_graphButton->setToolTip(tr("知识图谱"));
+    m_graphButton->setFlat(true);
+    m_graphButton->setStyleSheet("background: transparent; border: none;");
+    toolbarLayout->addWidget(m_graphButton);
+
     toolbarLayout->addStretch();
     filesLayout->addWidget(toolbar);
 
@@ -367,6 +378,9 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
                                              QLineEdit::Normal, QString(), &ok);
         if (ok && !name.isEmpty())
             emit newFolderRequested(currentTargetDirectory(), name);
+    });
+    connect(m_graphButton, &QPushButton::clicked, this, [this]() {
+        emit graphRequested();
     });
 
     new AutoHideScrollAreaFilter(m_treeView, this);

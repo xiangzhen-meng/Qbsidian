@@ -82,6 +82,7 @@ signals:
     void reviewTimelineRequested();
     void reviewStrategyRequested(const QString &absoluteFilePath, bool fixedInterval);
     void practiceRequested();
+    void graphRequested();
 
 private slots:
     void onItemClicked(const QModelIndex &index);
@@ -98,6 +99,7 @@ private:
     QPushButton *m_searchButton;
     QPushButton *m_reviewButton;
     QPushButton *m_practiceButton;
+    QPushButton *m_graphButton;
     QTreeView *m_treeView;
     QListWidget *m_searchResults;
     QFileSystemModel *m_model;
