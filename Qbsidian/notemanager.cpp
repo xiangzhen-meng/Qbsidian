@@ -125,13 +125,10 @@ QVector<SearchResult> NoteManager::searchInVault(const QString &directory, const
 {
     QVector<SearchResult> results;
 
-    // 检查正则是否有效（如果是用户输入了错误的原生正则，这里会拦截）
     if (!regex.isValid()) {
-        // 如果需要，可以在这里 emit errorOccurred("搜索", "无效的正则表达式");
         return results;
     }
 
-    // 搜索所有 .md 文件
     QDirIterator it(directory, QStringList() << "*.md", QDir::Files, QDirIterator::Subdirectories);
 
     // 遍历文件
@@ -140,19 +137,16 @@ QVector<SearchResult> NoteManager::searchInVault(const QString &directory, const
         QString filePath = it.next();
         QFileInfo fileInfo(filePath);
 
-        // ================= 新增：1. 先匹配文件名 =================
-        // 这里匹配的是文件名（例如 "我的笔记.md"），如果你只想匹配 "我的笔记"，可以使用 fileInfo.baseName()
         QString fileName = fileInfo.fileName();
         if (fileName.contains(regex))
         {
             SearchResult res;
             res.filePath = filePath;
-            res.lineNumber = 0; // 用行号 0 代表这是"文件名匹配"
+            res.lineNumber = 0;
             res.lineContent = fileName;
             results.push_back(res);
         }
 
-        // ================= 原有：2. 匹配文件内容 =================
         QFile file(filePath);
         if (file.open(QIODevice::ReadOnly | QIODevice::Text))
         {
@@ -164,7 +158,6 @@ QVector<SearchResult> NoteManager::searchInVault(const QString &directory, const
 #endif
 
             int lineNum = 1;
-            // 匹配每一行
             while (!in.atEnd())
             {
                 QString line = in.readLine();
