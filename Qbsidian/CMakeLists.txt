@@ -35,25 +35,30 @@ set(PROJECT_SOURCES
         inlineparser.h
         markdownparser.cpp
         markdownparser.h
+        notemanager.cpp
+        notemanager.h
         renderengine.cpp
         renderengine.h
+        reviewmanager.cpp
+        reviewmanager.h
+        reviewentity.cpp
+        reviewentity.h
+        reviewstrategy.cpp
+        reviewstrategy.h
+        questionextractor.cpp
+        questionextractor.h
+        questiondata.h
+        forcedirectedgraph.h
+        forcedirectedgraph.cpp
         ${TS_FILES}
         icons/icons.qrc
+        resourseQA.qrc
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(Qbsidian
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
-        notemanager.h notemanager.cpp
-        reviewmanager.h reviewmanager.cpp
-        reviewentity.h reviewentity.cpp
-        reviewstrategy.h reviewstrategy.cpp
-
-        questionextractor.h questionextractor.cpp
-        questiondata.h
-        resourseQA.qrc
-        forcedirectedgraph.h forcedirectedgraph.cpp
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET Qbsidian APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
