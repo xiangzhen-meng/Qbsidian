@@ -90,6 +90,7 @@ private:
     bool saveCurrentTab();
     bool saveTab(NoteTab *tab);
     void updateTabTitle(NoteTab *tab);
+    void installTabCloseButton(int index, QWidget *page);
     NoteTab *currentTab() const;
     void closeTabAt(int index);
     void jumpCurrentTabToLine(int lineNumber);
