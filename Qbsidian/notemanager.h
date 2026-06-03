@@ -28,6 +28,8 @@ public:
 
     QVector<SearchResult> searchInVault(const QString &directory, const QRegularExpression &regex) const;
 
+    bool renameItem(const QString &oldAbsolutePath, const QString &newAbsolutePath);
+
 signals:
     void errorOccurred(const QString &operation, const QString &reason);
 };

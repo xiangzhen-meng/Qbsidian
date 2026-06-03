@@ -50,10 +50,10 @@ private:
     QList<GraphEdge> m_edges;
 
     // 物理常数（可控制图谱聚集度）
-    const double m_repulsionK = 40000.0; // 斥力常数 (值越大，节点散得越开)
+    const double m_repulsionK = 45000.0; // 斥力常数 (值越大，节点散得越开)
     const double m_springK = 0.05;       // 弹簧引力常数 (值越大，连线拉得越紧)
     const double m_idealLength = 80.0;   // 弹簧理想长度 (相连节点间的舒适距离)
-    const double m_damping = 0.85;       // 摩擦力/阻尼 (值在0-1之间，越小系统越快静止，防止永无止境地颤动)
+    const double m_damping = 0.75;       // 摩擦力/阻尼 (值在0-1之间，越小系统越快静止，防止永无止境地颤动)
     const double m_gravityK = 0.01;      // 重力常数 (防止孤立节点飞出屏幕外，给所有节点一个向中心(0,0)拉的微弱力)
 };
 

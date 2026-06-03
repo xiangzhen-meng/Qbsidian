@@ -228,3 +228,42 @@ bool NoteManager::deleteItem(const QString &absolutePath)
     }
     return true;
 }
+
+bool NoteManager::renameItem(const QString &oldAbsolutePath, const QString &newAbsolutePath)
+{
+    // 检查原文件/文件夹是否存在
+    if (!QFileInfo::exists(oldAbsolutePath))
+    {
+        emit errorOccurred("重命名", "原文件或文件夹不存在: " + oldAbsolutePath);
+        return false;
+    }
+
+    // 检查目标路径是否已经存在（防止覆盖同名文件）
+    if (QFileInfo::exists(newAbsolutePath))
+    {
+        emit errorOccurred("重命名", "目标名称已存在，无法重命名: " + newAbsolutePath);
+        return false;
+    }
+
+    QFileInfo fileInfo(oldAbsolutePath);
+    bool success = false;
+
+    // 执行重命名
+    if (fileInfo.isFile())
+    {
+        success = QFile::rename(oldAbsolutePath, newAbsolutePath);
+    }
+    else if (fileInfo.isDir())
+    {
+        QDir dir;
+        success = dir.rename(oldAbsolutePath, newAbsolutePath);
+    }
+
+    if (!success)
+    {
+        emit errorOccurred("重命名", "重命名失败，可能由于权限不足或文件被占用");
+        return false;
+    }
+
+    return true;
+}
