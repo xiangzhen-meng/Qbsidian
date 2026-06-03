@@ -75,8 +75,11 @@ public:
     QList<ReviewPlanItem> reviewPlanBetween(const QDate& start, const QDate& end) const;
     void addManualReviewSchedule(const QString& notePath, const QString& noteTitle, const QDateTime& reviewDateTime);
     void removeManualSchedule(const QString& scheduleId);
+    void moveManualSchedule(const QString& scheduleId, const QDateTime& reviewDateTime);
     void removeManualSchedulesForNote(const QString& notePath);
     void removeStrategyReviewRecord(const QString& noteId);
+    void excludeStrategyReviewDate(const QString& noteId, const QDate& date);
+    void skipStrategyReview(const QString& noteId);
 
     /**
      * @brief 用户在 UI 点了“认识/不认识”后调用此接口更新状态

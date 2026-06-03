@@ -28,9 +28,12 @@ signals:
 
 protected:
     void mouseDoubleClickEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
 
 private:
     ReviewPlanItem m_item;
+    QPoint m_dragStartPosition;
 };
 
 class ReviewTimelineNode : public QWidget
@@ -46,6 +49,7 @@ public:
 
 signals:
     void noteDropped(const QString &absolutePath, const QDate &date);
+    void manualScheduleDropped(const QString &scheduleId, const QDate &date);
     void noteOpenRequested(const QString &absolutePath);
     void notePreviewRequested(const ReviewPlanItem &item);
 
@@ -57,6 +61,7 @@ protected:
 
 private:
     QString draggedNotePath(const QMimeData *mimeData) const;
+    QString draggedManualScheduleId(const QMimeData *mimeData) const;
     QString dateLabel() const;
     void setDropHighlighted(bool highlighted);
     void setHasReviews(bool hasReviews);
@@ -79,13 +84,17 @@ public:
     QDate startDate() const;
     QDate endDate() const;
     void setReviewPlan(const QList<ReviewPlanItem> &reviews);
+    void setDarkMode(bool dark);
 
 signals:
     void noteDropped(const QString &absolutePath, const QDate &date);
+    void manualScheduleDropped(const QString &scheduleId, const QDate &date);
     void noteOpenRequested(const QString &absolutePath);
     void notePreviewRequested(const ReviewPlanItem &item);
     void rememberedRequested(const ReviewPlanItem &item);
     void forgottenRequested(const ReviewPlanItem &item);
+    void manualDeleteRequested(const ReviewPlanItem &item);
+    void strategyDateDeleteRequested(const ReviewPlanItem &item);
     void strategyAdjustRequested(const ReviewPlanItem &item);
 
 public slots:
@@ -99,6 +108,7 @@ private:
     void updateContentHeight(const QMap<QDate, QList<ReviewPlanItem>> &grouped);
     QMap<QDate, QList<ReviewPlanItem>> groupedReviews() const;
     void updateReviewButtons();
+    void applyTheme();
 
     QList<ReviewPlanItem> m_reviews;
     QList<ReviewTimelineNode *> m_nodes;
@@ -110,9 +120,11 @@ private:
     PreviewPane *m_preview;
     QPushButton *m_rememberButton;
     QPushButton *m_forgetButton;
+    QPushButton *m_deleteButton;
     QPushButton *m_strategyButton;
     QString m_selectedNotePath;
     ReviewPlanItem m_selectedItem;
+    bool m_darkMode;
 };
 
 #endif // REVIEWTIMELINEPANE_H

@@ -111,7 +111,7 @@ void FileTreeDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opti
         return;
 
     painter->save();
-    QColor lineColor = m_darkMode ? QColor(255, 255, 255, 22) : QColor(0, 0, 0, 18);
+    QColor lineColor = m_darkMode ? QColor(129, 161, 193, 58) : QColor(129, 161, 193, 52);
     painter->setPen(QPen(lineColor, 1));
 
     if (expandedDir) {
@@ -202,8 +202,8 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     m_searchButton->setFixedSize(52, 24);
     m_reviewButton->setFixedSize(52, 24);
     QString navButtonStyle =
-        "QPushButton { padding: 2px 6px; font-size: 12px; font-weight: 500; border-radius: 5px; }"
-        "QPushButton:checked { background-color: #2e80f2; color: #ffffff; }";
+        "QPushButton { padding: 2px 6px; font-size: 12px; font-weight: 600; border-radius: 5px; }"
+        "QPushButton:checked { background-color: #81a1c1; color: #ffffff; }";
     m_filesButton->setStyleSheet(navButtonStyle);
     m_searchButton->setStyleSheet(navButtonStyle);
     m_reviewButton->setStyleSheet(navButtonStyle);
@@ -464,7 +464,7 @@ void FileExplorerPane::onSearchReturnPressed()
         QListWidgetItem *item = new QListWidgetItem(m_searchResults);
         QWidget *card = new QWidget(m_searchResults);
         card->setObjectName("searchCard");
-        card->setStyleSheet("QWidget#searchCard { background: rgba(128,128,128,0.08); border-radius: 8px; } QLabel { color: #8a8a8a; }");
+        card->setStyleSheet("QWidget#searchCard { background: rgba(129,161,193,0.12); border-radius: 8px; } QLabel { color: #81a1c1; }");
         QVBoxLayout *cardLayout = new QVBoxLayout(card);
         cardLayout->setContentsMargins(10, 8, 10, 8);
         QLabel *label = new QLabel(tr("没有找到匹配结果"), card);
@@ -481,9 +481,9 @@ void FileExplorerPane::onSearchReturnPressed()
         QWidget *card = new QWidget(m_searchResults);
         card->setObjectName("searchCard");
         card->setStyleSheet(
-            "QWidget#searchCard { background: rgba(128,128,128,0.08); border-radius: 8px; }"
+            "QWidget#searchCard { background: rgba(129,161,193,0.12); border-radius: 8px; }"
             "QLabel#searchTitle { font-weight: 600; color: palette(text); }"
-            "QLabel#searchExcerpt { color: #8a8a8a; }"
+            "QLabel#searchExcerpt { color: #81a1c1; }"
         );
         QVBoxLayout *cardLayout = new QVBoxLayout(card);
         cardLayout->setContentsMargins(10, 8, 10, 8);
