@@ -10,6 +10,7 @@ class FileExplorerPane;
 class EditorPane;
 class PreviewPane;
 class ReviewTimelinePane;
+class GraphPane;
 class NoteManager;
 class ReviewManager;
 class QSplitter;
@@ -74,6 +75,7 @@ private slots:
     void onTimelineManualScheduleDropped(const QString &scheduleId, const QDate &date);
     void onReviewStrategyRequested(const QString &absolutePath, bool fixedInterval);
     void onPracticeRequested();
+    void onGraphRequested();
 
 private:
     void setupUi();
@@ -96,6 +98,7 @@ private:
     QString buildLightQss() const;
     QString buildDarkQss() const;
     void ensureReviewTimelineTab();
+    void ensureGraphTab();
     void refreshReviewTimeline();
     QString promptFixedIntervalStrategy();
     void applyReviewStrategy(const QString &noteId, const QString &title, const QString &strategyId);
@@ -106,6 +109,8 @@ private:
     QTabWidget *m_tabWidget;
     ReviewTimelinePane *m_reviewTimeline;
     QWidget *m_reviewTimelinePage;
+    GraphPane *m_graphPane;
+    QWidget *m_graphPage;
     NoteManager *m_noteManager;
     ReviewManager *m_reviewManager;
 

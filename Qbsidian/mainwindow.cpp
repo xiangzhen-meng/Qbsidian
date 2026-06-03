@@ -5,6 +5,7 @@
 #include "previewpane.h"
 #include "reviewtimelinepane.h"
 #include "practicedialog.h"
+#include "graphpane.h"
 #include "notemanager.h"
 #include "ReviewManager.h"
 #include "questionextractor.h"
@@ -45,6 +46,8 @@ MainWindow::MainWindow(QWidget *parent)
     , m_tabWidget(nullptr)
     , m_reviewTimeline(nullptr)
     , m_reviewTimelinePage(nullptr)
+    , m_graphPane(nullptr)
+    , m_graphPage(nullptr)
     , m_noteManager(nullptr)
     , m_reviewManager(nullptr)
     , m_noteManagerHadError(false)
@@ -258,6 +261,8 @@ void MainWindow::applyContentTheme()
     m_fileExplorer->setDarkMode(dark);
     if (m_reviewTimeline)
         m_reviewTimeline->setDarkMode(dark);
+    if (m_graphPane)
+        m_graphPane->setDarkMode(dark);
     for (NoteTab *tab : m_tabsByPath) {
         tab->preview->setDarkMode(dark);
         tab->preview->showHtml(tab->editor->toPlainText());
@@ -338,6 +343,8 @@ void MainWindow::connectSignals()
             this, &MainWindow::onReviewStrategyRequested);
     connect(m_fileExplorer, &FileExplorerPane::practiceRequested,
             this, &MainWindow::onPracticeRequested);
+    connect(m_fileExplorer, &FileExplorerPane::graphRequested,
+            this, &MainWindow::onGraphRequested);
 
     connect(m_tabWidget, &QTabWidget::tabCloseRequested,
             this, &MainWindow::onTabCloseRequested);
@@ -680,7 +687,7 @@ void MainWindow::onTabCloseRequested(int index)
 {
     NoteTab *tab = nullptr;
     QWidget *page = m_tabWidget->widget(index);
-    if (page == m_reviewTimelinePage) {
+    if (page == m_reviewTimelinePage || page == m_graphPage) {
         closeTabAt(index);
         return;
     }
@@ -725,6 +732,15 @@ void MainWindow::closeTabAt(int index)
         m_reviewTimelinePage = nullptr;
         m_reviewTimeline = nullptr;
         m_fileExplorer->setReviewButtonChecked(false);
+        updateTitle();
+        return;
+    }
+
+    if (page == m_graphPage) {
+        m_tabWidget->removeTab(index);
+        m_graphPage->deleteLater();
+        m_graphPage = nullptr;
+        m_graphPane = nullptr;
         updateTitle();
         return;
     }
@@ -1087,4 +1103,33 @@ void MainWindow::onPracticeRequested()
     dialog.exec();
 
     m_fileExplorer->setPracticeButtonChecked(false);
+}
+
+void MainWindow::onGraphRequested()
+{
+    ensureGraphTab();
+    m_tabWidget->setCurrentWidget(m_graphPage);
+}
+
+void MainWindow::ensureGraphTab()
+{
+    if (m_graphPage)
+        return;
+
+    m_graphPage = new QWidget(m_tabWidget);
+    QVBoxLayout *graphLayout = new QVBoxLayout(m_graphPage);
+    graphLayout->setContentsMargins(0, 0, 0, 0);
+
+    m_graphPane = new GraphPane(m_graphPage);
+    m_graphPane->setDarkMode(m_themeMode == ThemeMode::Dark);
+    graphLayout->addWidget(m_graphPane);
+
+    int index = m_tabWidget->addTab(m_graphPage, tr("知识图谱"));
+    m_tabWidget->setCurrentIndex(index);
+
+    connect(m_graphPane, &GraphPane::noteOpenRequested, this, [this](const QString &filePath) {
+        openFileInTab(filePath);
+    });
+
+    m_graphPane->loadVault(m_vaultPath);
 }

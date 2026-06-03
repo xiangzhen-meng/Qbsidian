@@ -52,6 +52,10 @@ set(PROJECT_SOURCES
         practicedialog.h
         forcedirectedgraph.h
         forcedirectedgraph.cpp
+        graphpane.h
+        graphpane.cpp
+        graphnodeitem.h
+        graphnodeitem.cpp
         ${TS_FILES}
         icons/icons.qrc
         resourseQA.qrc
