@@ -1,4 +1,4 @@
-#include "QuestionExtractor.h"
+#include "questionextractor.h"
 #include <QDirIterator>
 #include <QFile>
 #include <QTextStream>
@@ -44,7 +44,11 @@ QList<ExtractedQuestion> QuestionExtractor::extractFromFile(const QString &fileP
     }
 
     QTextStream in(&file);
-    in.setEncoding(QStringConverter::Utf8); // 确保中文正常读取
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    in.setEncoding(QStringConverter::Utf8);
+#else
+    in.setCodec("UTF-8");
+#endif
 
     int lineNumber = 0;
     while (!in.atEnd()) {
@@ -83,7 +87,7 @@ QString QuestionExtractor::generateUniqueId(const QString &filePath, int lineNum
     return hash.toHex();
 }
 // 实现从预制 JSON 资源中读取题目
-QList<ExtractedQuestion> extractFromPreset(const QString &resourcePath = ":/presets/preset_cs.json")
+QList<ExtractedQuestion> QuestionExtractor::extractFromPreset(const QString &resourcePath)
 {
     QList<ExtractedQuestion> presetQuestions;
 

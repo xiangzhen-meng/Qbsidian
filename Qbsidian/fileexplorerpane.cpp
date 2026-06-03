@@ -392,8 +392,17 @@ void FileExplorerPane::onCustomContextMenu(const QPoint &pos)
     QMenu menu(m_treeView);
     QAction *newNoteAction = menu.addAction(tr("新建笔记"));
     QAction *newFolderAction = menu.addAction(tr("新建文件夹"));
+    QAction *ebbinghausAction = nullptr;
+    QAction *fixedIntervalAction = nullptr;
     QAction *deleteAction = nullptr;
     if (proxyIndex.isValid()) {
+        QFileInfo fileInfo = m_model->fileInfo(sourceIndex);
+        if (fileInfo.isFile() && fileInfo.suffix() == "md") {
+            menu.addSeparator();
+            QMenu *reviewMenu = menu.addMenu(tr("加入复习计划"));
+            ebbinghausAction = reviewMenu->addAction(tr("艾宾浩斯"));
+            fixedIntervalAction = reviewMenu->addAction(tr("固定间隔 + 休息日"));
+        }
         menu.addSeparator();
         deleteAction = menu.addAction(tr("删除"));
     }
@@ -419,6 +428,10 @@ void FileExplorerPane::onCustomContextMenu(const QPoint &pos)
     } else if (deleteAction && chosen == deleteAction) {
         QFileInfo info = m_model->fileInfo(sourceIndex);
         emit deleteRequested(info.absoluteFilePath());
+    } else if ((ebbinghausAction && chosen == ebbinghausAction)
+               || (fixedIntervalAction && chosen == fixedIntervalAction)) {
+        QFileInfo info = m_model->fileInfo(sourceIndex);
+        emit reviewStrategyRequested(info.absoluteFilePath(), chosen == fixedIntervalAction);
     }
 }
 

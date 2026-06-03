@@ -5,7 +5,7 @@
 #include <QList>
 #include <QString>
 #include <QRegularExpression>
-#include "QuestionData.h"
+#include "questiondata.h"
 
 class QuestionExtractor : public QObject
 {

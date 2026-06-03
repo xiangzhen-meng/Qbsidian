@@ -79,6 +79,7 @@ signals:
     void deleteRequested(const QString &absolutePath);
     void searchResultClicked(const QString &filePath, int lineNumber);
     void reviewTimelineRequested();
+    void reviewStrategyRequested(const QString &absoluteFilePath, bool fixedInterval);
 
 private slots:
     void onItemClicked(const QModelIndex &index);
