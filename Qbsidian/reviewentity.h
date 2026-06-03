@@ -3,7 +3,9 @@
 
 #include <QString>
 #include <QDateTime>
+#include <QDate>
 #include <QJsonObject>
+#include <QList>
 
 // 笔记当前的复习状态
 enum class NoteStatus {
@@ -30,6 +32,7 @@ public:
     QDateTime lastReviewTime;  // 上一次复习时间
     QDateTime nextReviewTime;  // 计算出的下次复习时间
     int reviewCount;           // 连续成功的复习次数
+    QList<QDate> excludedReviewDates;
 
     // 默认构造
     ReviewEntity();

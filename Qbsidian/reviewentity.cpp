@@ -1,4 +1,6 @@
-#include "ReviewEntity.h"
+#include "reviewentity.h"
+#include <QJsonArray>
+#include <QJsonValue>
 
 
 ReviewEntity::ReviewEntity()
@@ -40,6 +42,13 @@ QJsonObject ReviewEntity::toJson() const
     json["lastReviewTime"] = lastReviewTime.isValid() ? lastReviewTime.toString(Qt::ISODate) : "";
     json["nextReviewTime"] = nextReviewTime.isValid() ? nextReviewTime.toString(Qt::ISODate) : "";
 
+    QJsonArray excludedArray;
+    for (const QDate &date : excludedReviewDates) {
+        if (date.isValid())
+            excludedArray.append(date.toString(Qt::ISODate));
+    }
+    json["excludedReviewDates"] = excludedArray;
+
     return json;
 }
 
@@ -71,5 +80,13 @@ void ReviewEntity::fromJson(const QJsonObject& json) {
     QString nextStr = json["nextReviewTime"].toString();
     if (!nextStr.isEmpty()) {
         nextReviewTime = QDateTime::fromString(nextStr, Qt::ISODate);
+    }
+
+    excludedReviewDates.clear();
+    QJsonArray excludedArray = json["excludedReviewDates"].toArray();
+    for (const QJsonValue &value : excludedArray) {
+        QDate date = QDate::fromString(value.toString(), Qt::ISODate);
+        if (date.isValid() && !excludedReviewDates.contains(date))
+            excludedReviewDates.append(date);
     }
 }

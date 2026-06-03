@@ -66,9 +66,12 @@ private slots:
     void onTimelineNotePreviewRequested(const ReviewPlanItem &item);
     void onTimelineRememberedRequested(const ReviewPlanItem &item);
     void onTimelineForgottenRequested(const ReviewPlanItem &item);
+    void onTimelineManualDeleteRequested(const ReviewPlanItem &item);
+    void onTimelineStrategyDateDeleteRequested(const ReviewPlanItem &item);
     void onTimelineStrategyAdjustRequested(const ReviewPlanItem &item);
     void onReviewTimelineRequested();
     void onTimelineNoteDropped(const QString &absolutePath, const QDate &date);
+    void onTimelineManualScheduleDropped(const QString &scheduleId, const QDate &date);
     void onReviewStrategyRequested(const QString &absolutePath, bool fixedInterval);
 
 private:

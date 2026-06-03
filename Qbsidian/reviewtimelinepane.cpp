@@ -1,10 +1,12 @@
 #include "reviewtimelinepane.h"
 #include "previewpane.h"
 
+#include <QApplication>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QFileInfo>
 #include <QFrame>
+#include <QDrag>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
@@ -28,6 +30,29 @@ void ReviewNoteButton::mouseDoubleClickEvent(QMouseEvent *event)
 {
     emit doubleClicked(m_item);
     QPushButton::mouseDoubleClickEvent(event);
+}
+
+void ReviewNoteButton::mousePressEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton)
+        m_dragStartPosition = event->pos();
+    QPushButton::mousePressEvent(event);
+}
+
+void ReviewNoteButton::mouseMoveEvent(QMouseEvent *event)
+{
+    if (m_item.source != ReviewPlanItemSource::ManualSchedule
+        || !(event->buttons() & Qt::LeftButton)
+        || (event->pos() - m_dragStartPosition).manhattanLength() < QApplication::startDragDistance()) {
+        QPushButton::mouseMoveEvent(event);
+        return;
+    }
+
+    QDrag *drag = new QDrag(this);
+    QMimeData *mimeData = new QMimeData;
+    mimeData->setData("application/x-qbsidian-manual-schedule", m_item.id.toUtf8());
+    drag->setMimeData(mimeData);
+    drag->exec(Qt::MoveAction);
 }
 
 ReviewTimelineNode::ReviewTimelineNode(const QDate &date, QWidget *parent)
@@ -87,10 +112,20 @@ void ReviewTimelineNode::setReviews(const QList<ReviewPlanItem> &reviews)
         delete item;
     }
 
-    m_notesLayout->addStretch(1);
+    QList<ReviewPlanItem> manualReviews;
+    QList<ReviewPlanItem> strategyReviews;
     for (const ReviewPlanItem &item : reviews) {
+        if (item.source == ReviewPlanItemSource::ManualSchedule)
+            manualReviews.append(item);
+        else
+            strategyReviews.append(item);
+    }
+
+    m_notesLayout->addStretch(1);
+    QList<ReviewPlanItem> orderedReviews = manualReviews + strategyReviews;
+    for (const ReviewPlanItem &item : orderedReviews) {
         ReviewNoteButton *noteButton = new ReviewNoteButton(item, this);
-        noteButton->setObjectName("timelineNoteButton");
+        noteButton->setObjectName(item.source == ReviewPlanItemSource::ManualSchedule ? "timelineManualNoteButton" : "timelineStrategyNoteButton");
         noteButton->setToolTip(item.noteId);
         noteButton->setCursor(Qt::PointingHandCursor);
         noteButton->setFixedHeight(36);
@@ -114,7 +149,7 @@ int ReviewTimelineNode::reviewCount() const
 
 void ReviewTimelineNode::dragEnterEvent(QDragEnterEvent *event)
 {
-    if (!draggedNotePath(event->mimeData()).isEmpty()) {
+    if (!draggedNotePath(event->mimeData()).isEmpty() || !draggedManualScheduleId(event->mimeData()).isEmpty()) {
         event->acceptProposedAction();
         setDropHighlighted(true);
         return;
@@ -124,7 +159,7 @@ void ReviewTimelineNode::dragEnterEvent(QDragEnterEvent *event)
 
 void ReviewTimelineNode::dragMoveEvent(QDragMoveEvent *event)
 {
-    if (!draggedNotePath(event->mimeData()).isEmpty()) {
+    if (!draggedNotePath(event->mimeData()).isEmpty() || !draggedManualScheduleId(event->mimeData()).isEmpty()) {
         event->acceptProposedAction();
         return;
     }
@@ -140,7 +175,8 @@ void ReviewTimelineNode::dragLeaveEvent(QDragLeaveEvent *event)
 void ReviewTimelineNode::dropEvent(QDropEvent *event)
 {
     QString path = draggedNotePath(event->mimeData());
-    if (path.isEmpty()) {
+    QString scheduleId = draggedManualScheduleId(event->mimeData());
+    if (path.isEmpty() && scheduleId.isEmpty()) {
         event->ignore();
         setDropHighlighted(false);
         return;
@@ -148,7 +184,10 @@ void ReviewTimelineNode::dropEvent(QDropEvent *event)
 
     setDropHighlighted(false);
     event->acceptProposedAction();
-    emit noteDropped(path, m_date);
+    if (!scheduleId.isEmpty())
+        emit manualScheduleDropped(scheduleId, m_date);
+    else
+        emit noteDropped(path, m_date);
 }
 
 QString ReviewTimelineNode::draggedNotePath(const QMimeData *mimeData) const
@@ -166,6 +205,14 @@ QString ReviewTimelineNode::draggedNotePath(const QMimeData *mimeData) const
     }
 
     return QString();
+}
+
+QString ReviewTimelineNode::draggedManualScheduleId(const QMimeData *mimeData) const
+{
+    if (!mimeData || !mimeData->hasFormat("application/x-qbsidian-manual-schedule"))
+        return QString();
+
+    return QString::fromUtf8(mimeData->data("application/x-qbsidian-manual-schedule"));
 }
 
 QString ReviewTimelineNode::dateLabel() const
@@ -199,6 +246,7 @@ ReviewTimelinePane::ReviewTimelinePane(QWidget *parent)
     , m_preview(nullptr)
     , m_rememberButton(nullptr)
     , m_forgetButton(nullptr)
+    , m_deleteButton(nullptr)
     , m_strategyButton(nullptr)
 {
     QHBoxLayout *rootLayout = new QHBoxLayout(this);
@@ -252,12 +300,15 @@ ReviewTimelinePane::ReviewTimelinePane(QWidget *parent)
     buttonLayout->setSpacing(8);
     m_rememberButton = new QPushButton(tr("记住"), buttonBar);
     m_forgetButton = new QPushButton(tr("忘记"), buttonBar);
+    m_deleteButton = new QPushButton(tr("删除"), buttonBar);
     m_strategyButton = new QPushButton(tr("调整策略"), buttonBar);
     m_rememberButton->setObjectName("timelineRememberButton");
     m_forgetButton->setObjectName("timelineForgetButton");
+    m_deleteButton->setObjectName("timelineDeleteButton");
     m_strategyButton->setObjectName("timelineStrategyButton");
     buttonLayout->addWidget(m_rememberButton);
     buttonLayout->addWidget(m_forgetButton);
+    buttonLayout->addWidget(m_deleteButton);
     buttonLayout->addWidget(m_strategyButton);
 
     previewLayout->addWidget(m_preview, 1);
@@ -280,6 +331,14 @@ ReviewTimelinePane::ReviewTimelinePane(QWidget *parent)
         if (!m_selectedNotePath.isEmpty())
             emit forgottenRequested(m_selectedItem);
     });
+    connect(m_deleteButton, &QPushButton::clicked, this, [this]() {
+        if (m_selectedNotePath.isEmpty())
+            return;
+        if (m_selectedItem.source == ReviewPlanItemSource::Strategy)
+            emit strategyDateDeleteRequested(m_selectedItem);
+        else
+            emit manualDeleteRequested(m_selectedItem);
+    });
     connect(m_strategyButton, &QPushButton::clicked, this, [this]() {
         if (!m_selectedNotePath.isEmpty())
             emit strategyAdjustRequested(m_selectedItem);
@@ -298,11 +357,15 @@ ReviewTimelinePane::ReviewTimelinePane(QWidget *parent)
         "QLabel#timelineNodeLabel { color: #8a8a8a; font-size: 12px; font-weight: 600; }"
         "QLabel#timelineNodeDot { color: rgba(128,128,128,0.45); font-size: 10px; }"
         "QLabel#timelineNodeDot[hasReviews=\"true\"] { color: rgba(46,128,242,0.65); }"
-        "QPushButton#timelineNoteButton { background: rgba(46,128,242,0.12); color: palette(text); border: 1px solid rgba(46,128,242,0.25); border-radius: 8px; padding: 6px 10px; text-align: left; font-weight: 600; font-size: 13px; }"
-        "QPushButton#timelineNoteButton:hover { background: rgba(46,128,242,0.22); border-color: #2e80f2; }"
+        "QPushButton#timelineStrategyNoteButton { background: rgba(46,128,242,0.12); color: palette(text); border: 1px solid rgba(46,128,242,0.32); border-radius: 8px; padding: 6px 10px; text-align: left; font-weight: 600; font-size: 13px; }"
+        "QPushButton#timelineStrategyNoteButton:hover { background: rgba(46,128,242,0.22); border-color: #2e80f2; }"
+        "QPushButton#timelineManualNoteButton { background: rgba(255,193,7,0.18); color: palette(text); border: 1px solid rgba(255,193,7,0.58); border-radius: 8px; padding: 6px 10px; text-align: left; font-weight: 600; font-size: 13px; }"
+        "QPushButton#timelineManualNoteButton:hover { background: rgba(255,193,7,0.28); border-color: #ffc107; }"
         "QPushButton#timelineRememberButton { background: #34c759; color: #ffffff; border: none; border-radius: 7px; padding: 7px 10px; font-weight: 600; }"
         "QPushButton#timelineForgetButton { background: #ff3b30; color: #ffffff; border: none; border-radius: 7px; padding: 7px 10px; font-weight: 600; }"
+        "QPushButton#timelineDeleteButton { background: #ff9500; color: #ffffff; border: none; border-radius: 7px; padding: 7px 10px; font-weight: 600; }"
         "QPushButton#timelineStrategyButton { background: transparent; color: palette(text); border: 1px solid rgba(128,128,128,0.28); border-radius: 7px; padding: 7px 10px; }"
+        "QPushButton#timelineRememberButton:disabled, QPushButton#timelineForgetButton:disabled, QPushButton#timelineDeleteButton:disabled, QPushButton#timelineStrategyButton:disabled { background: rgba(128,128,128,0.18); color: rgba(128,128,128,0.65); border: none; }"
         "QPushButton:disabled { background: rgba(128,128,128,0.18); color: rgba(128,128,128,0.65); border: none; }"
     );
 }
@@ -362,6 +425,11 @@ void ReviewTimelinePane::ensureNodes()
                 emit noteDropped(path, date);
             });
         });
+        connect(node, &ReviewTimelineNode::manualScheduleDropped, this, [this](const QString &scheduleId, const QDate &date) {
+            QTimer::singleShot(0, this, [this, scheduleId, date]() {
+                emit manualScheduleDropped(scheduleId, date);
+            });
+        });
         connect(node, &ReviewTimelineNode::noteOpenRequested,
                 this, &ReviewTimelinePane::noteOpenRequested);
         connect(node, &ReviewTimelineNode::notePreviewRequested,
@@ -389,9 +457,14 @@ void ReviewTimelinePane::clearPreview()
 void ReviewTimelinePane::updateReviewButtons()
 {
     bool hasSelection = !m_selectedNotePath.isEmpty();
-    m_rememberButton->setEnabled(hasSelection);
-    m_forgetButton->setEnabled(hasSelection);
-    m_strategyButton->setEnabled(hasSelection);
+    bool isStrategy = hasSelection && m_selectedItem.source == ReviewPlanItemSource::Strategy;
+    bool isManual = hasSelection && m_selectedItem.source == ReviewPlanItemSource::ManualSchedule;
+    bool isToday = hasSelection && m_selectedItem.reviewTime.date() == QDate::currentDate();
+    m_rememberButton->setEnabled(isStrategy && isToday);
+    m_forgetButton->setEnabled(isStrategy && isToday);
+    m_deleteButton->setEnabled(isStrategy || isManual);
+    m_deleteButton->setText(tr("删除当天"));
+    m_strategyButton->setEnabled(isStrategy);
 }
 
 void ReviewTimelinePane::clearNodes()

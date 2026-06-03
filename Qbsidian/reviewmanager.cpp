@@ -238,6 +238,7 @@ void ReviewManager::changeNoteStrategy(const QString& noteId, const QString& new
     entity.reviewCount = 0;
     entity.lastReviewTime = QDateTime();
     entity.status = NoteStatus::Learning;
+    entity.excludedReviewDates.clear();
 
     // 切换策略后，从新策略的第一个周期重新开始。
     IReviewStrategy* strat = m_strategies.value(newStrategyId);
@@ -311,23 +312,44 @@ QList<ReviewPlanItem> ReviewManager::reviewPlanBetween(const QDate& start, const
         if (entity.status != NoteStatus::Learning || !entity.nextReviewTime.isValid())
             continue;
 
-        QDate reviewDate = entity.nextReviewTime.date();
-        if (reviewDate >= start && reviewDate <= end) {
-            ReviewPlanItem item;
-            item.id = entity.noteId;
-            item.noteId = entity.noteId;
-            item.noteTitle = entity.noteTitle;
-            item.reviewTime = entity.nextReviewTime;
-            item.source = ReviewPlanItemSource::Strategy;
-            item.userPriority = entity.userPriority;
-            item.reviewCount = entity.reviewCount;
-            plan.append(item);
+        IReviewStrategy* strat = m_strategies.value(entity.strategyId, m_strategies.value("standard_ebbinghaus"));
+        if (!strat)
+            continue;
+
+        CustomStrategy *customStrat = dynamic_cast<CustomStrategy *>(strat);
+        QDateTime simulatedTime = entity.nextReviewTime;
+        int simulatedCount = entity.reviewCount;
+        if (simulatedTime.date() < start)
+            simulatedTime.setDate(start);
+
+        while (simulatedTime.date() <= end) {
+            if (!entity.excludedReviewDates.contains(simulatedTime.date())) {
+                ReviewPlanItem item;
+                item.id = entity.noteId;
+                item.noteId = entity.noteId;
+                item.noteTitle = entity.noteTitle;
+                item.reviewTime = simulatedTime;
+                item.source = ReviewPlanItemSource::Strategy;
+                item.userPriority = entity.userPriority;
+                item.reviewCount = simulatedCount;
+                plan.append(item);
+            }
+
+            simulatedCount++;
+            if (customStrat && !customStrat->getIntervals().isEmpty()
+                && simulatedCount > customStrat->getIntervals().size())
+                break;
+
+            QDateTime nextTime = strat->calculateNextTime(simulatedTime, simulatedCount, true);
+            if (!nextTime.isValid() || nextTime <= simulatedTime)
+                break;
+            simulatedTime = nextTime;
         }
     }
 
     for (const ManualReviewSchedule &schedule : m_manualSchedules) {
         QDate reviewDate = schedule.reviewDateTime.date();
-        if (reviewDate < start || reviewDate > end)
+        if (reviewDate > end)
             continue;
 
         ReviewPlanItem item;
@@ -335,6 +357,8 @@ QList<ReviewPlanItem> ReviewManager::reviewPlanBetween(const QDate& start, const
         item.noteId = schedule.notePath;
         item.noteTitle = schedule.noteTitle.isEmpty() ? QFileInfo(schedule.notePath).completeBaseName() : schedule.noteTitle;
         item.reviewTime = schedule.reviewDateTime;
+        if (reviewDate < start)
+            item.reviewTime.setDate(start);
         item.source = ReviewPlanItemSource::ManualSchedule;
         plan.append(item);
     }
@@ -381,6 +405,19 @@ void ReviewManager::removeManualSchedule(const QString& scheduleId) {
     }
 }
 
+void ReviewManager::moveManualSchedule(const QString& scheduleId, const QDateTime& reviewDateTime) {
+    if (scheduleId.isEmpty() || !reviewDateTime.isValid())
+        return;
+
+    for (ManualReviewSchedule &schedule : m_manualSchedules) {
+        if (schedule.id == scheduleId) {
+            schedule.reviewDateTime = reviewDateTime;
+            saveData();
+            return;
+        }
+    }
+}
+
 void ReviewManager::removeManualSchedulesForNote(const QString& notePath) {
     bool removed = false;
     for (int i = m_manualSchedules.size() - 1; i >= 0; --i) {
@@ -397,6 +434,30 @@ void ReviewManager::removeManualSchedulesForNote(const QString& notePath) {
 void ReviewManager::removeStrategyReviewRecord(const QString& noteId) {
     if (m_noteEntities.remove(noteId) > 0)
         saveData();
+}
+
+void ReviewManager::excludeStrategyReviewDate(const QString& noteId, const QDate& date) {
+    if (!m_noteEntities.contains(noteId) || !date.isValid())
+        return;
+
+    ReviewEntity& entity = m_noteEntities[noteId];
+    if (!entity.excludedReviewDates.contains(date)) {
+        entity.excludedReviewDates.append(date);
+        saveData();
+    }
+}
+
+void ReviewManager::skipStrategyReview(const QString& noteId) {
+    if (!m_noteEntities.contains(noteId))
+        return;
+
+    ReviewEntity& entity = m_noteEntities[noteId];
+    if (entity.status != NoteStatus::Learning)
+        return;
+
+    IReviewStrategy* strat = m_strategies.value(entity.strategyId, m_strategies.value("standard_ebbinghaus"));
+    entity.nextReviewTime = strat->calculateNextTime(QDateTime::currentDateTime(), entity.reviewCount, true);
+    saveData();
 }
 
 void ReviewManager::processReviewFeedback(const QString& noteId, bool isRemembered) {

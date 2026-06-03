@@ -752,6 +752,30 @@ void MainWindow::onTimelineForgottenRequested(const ReviewPlanItem &item)
         m_reviewTimeline->clearPreview();
 }
 
+void MainWindow::onTimelineManualDeleteRequested(const ReviewPlanItem &item)
+{
+    if (item.source != ReviewPlanItemSource::ManualSchedule)
+        return;
+
+    m_reviewManager->removeManualSchedule(item.id);
+    refreshReviewTimeline();
+    if (m_reviewTimeline)
+        m_reviewTimeline->clearPreview();
+    ui->statusbar->showMessage(tr("已删除手动排期: %1").arg(QFileInfo(item.noteId).completeBaseName()));
+}
+
+void MainWindow::onTimelineStrategyDateDeleteRequested(const ReviewPlanItem &item)
+{
+    if (item.source != ReviewPlanItemSource::Strategy)
+        return;
+
+    m_reviewManager->excludeStrategyReviewDate(item.noteId, item.reviewTime.date());
+    refreshReviewTimeline();
+    if (m_reviewTimeline)
+        m_reviewTimeline->clearPreview();
+    ui->statusbar->showMessage(tr("已删除当天复习规划: %1").arg(QFileInfo(item.noteId).completeBaseName()));
+}
+
 void MainWindow::onTimelineStrategyAdjustRequested(const ReviewPlanItem &item)
 {
     QFileInfo info(item.noteId);
@@ -765,12 +789,12 @@ void MainWindow::onTimelineStrategyAdjustRequested(const ReviewPlanItem &item)
     layout->setVerticalSpacing(12);
     QComboBox *strategyCombo = new QComboBox(&dialog);
     strategyCombo->setStyleSheet(
-        "QComboBox { padding: 6px 10px; min-height: 32px; }"
-        "QComboBox QAbstractItemView::item { min-height: 34px; padding: 6px 10px; }"
+        "QComboBox { padding: 8px 12px; min-height: 36px; }"
+        "QComboBox QAbstractItemView::item { min-height: 42px; padding: 10px 12px; }"
     );
-    strategyCombo->addItem(tr("仅当天"), QStringLiteral("manual"));
     strategyCombo->addItem(tr("艾宾浩斯"), QStringLiteral("standard_ebbinghaus"));
     strategyCombo->addItem(tr("固定间隔 + 休息日"), QStringLiteral("custom"));
+    strategyCombo->addItem(tr("从复习规划中删除"), QStringLiteral("remove_strategy"));
     layout->addRow(tr("策略"), strategyCombo);
 
     QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
@@ -783,14 +807,14 @@ void MainWindow::onTimelineStrategyAdjustRequested(const ReviewPlanItem &item)
 
     QString strategyId = strategyCombo->currentData().toString();
     QString title = info.completeBaseName();
-    if (strategyId == QStringLiteral("manual")) {
+    if (strategyId == QStringLiteral("remove_strategy")) {
         if (item.source == ReviewPlanItemSource::Strategy) {
             m_reviewManager->removeStrategyReviewRecord(item.noteId);
-            QDateTime reviewTime = item.reviewTime.isValid() ? item.reviewTime : QDateTime(QDate::currentDate(), QTime(9, 0));
-            m_reviewManager->addManualReviewSchedule(item.noteId, title, reviewTime);
         }
         refreshReviewTimeline();
-        ui->statusbar->showMessage(tr("已设为仅当天复习: %1").arg(title));
+        if (m_reviewTimeline)
+            m_reviewTimeline->clearPreview();
+        ui->statusbar->showMessage(tr("已从复习规划中删除: %1").arg(title));
         return;
     }
 
@@ -910,6 +934,16 @@ void MainWindow::onTimelineNoteDropped(const QString &absolutePath, const QDate 
     ui->statusbar->showMessage(tr("已安排复习: %1").arg(title));
 }
 
+void MainWindow::onTimelineManualScheduleDropped(const QString &scheduleId, const QDate &date)
+{
+    if (scheduleId.isEmpty())
+        return;
+
+    m_reviewManager->moveManualSchedule(scheduleId, QDateTime(date, QTime(9, 0)));
+    refreshReviewTimeline();
+    ui->statusbar->showMessage(tr("已移动手动排期"));
+}
+
 void MainWindow::ensureReviewTimelineTab()
 {
     if (m_reviewTimelinePage)
@@ -926,6 +960,8 @@ void MainWindow::ensureReviewTimelineTab()
 
     connect(m_reviewTimeline, &ReviewTimelinePane::noteDropped,
             this, &MainWindow::onTimelineNoteDropped);
+    connect(m_reviewTimeline, &ReviewTimelinePane::manualScheduleDropped,
+            this, &MainWindow::onTimelineManualScheduleDropped);
     connect(m_reviewTimeline, &ReviewTimelinePane::noteOpenRequested,
             this, &MainWindow::onReviewItemOpenRequested);
     connect(m_reviewTimeline, &ReviewTimelinePane::notePreviewRequested,
@@ -934,6 +970,10 @@ void MainWindow::ensureReviewTimelineTab()
             this, &MainWindow::onTimelineRememberedRequested);
     connect(m_reviewTimeline, &ReviewTimelinePane::forgottenRequested,
             this, &MainWindow::onTimelineForgottenRequested);
+    connect(m_reviewTimeline, &ReviewTimelinePane::manualDeleteRequested,
+            this, &MainWindow::onTimelineManualDeleteRequested);
+    connect(m_reviewTimeline, &ReviewTimelinePane::strategyDateDeleteRequested,
+            this, &MainWindow::onTimelineStrategyDateDeleteRequested);
     connect(m_reviewTimeline, &ReviewTimelinePane::strategyAdjustRequested,
             this, &MainWindow::onTimelineStrategyAdjustRequested);
 }
