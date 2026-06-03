@@ -248,12 +248,15 @@ ReviewTimelinePane::ReviewTimelinePane(QWidget *parent)
     , m_forgetButton(nullptr)
     , m_deleteButton(nullptr)
     , m_strategyButton(nullptr)
+    , m_darkMode(false)
 {
+    setObjectName("reviewTimelinePane");
     QHBoxLayout *rootLayout = new QHBoxLayout(this);
     rootLayout->setContentsMargins(24, 22, 24, 22);
     rootLayout->setSpacing(16);
 
     QWidget *timelinePanel = new QWidget(this);
+    timelinePanel->setObjectName("timelinePanel");
     QVBoxLayout *timelineLayout = new QVBoxLayout(timelinePanel);
     timelineLayout->setContentsMargins(0, 0, 0, 0);
     timelineLayout->setSpacing(14);
@@ -271,6 +274,7 @@ ReviewTimelinePane::ReviewTimelinePane(QWidget *parent)
     timelineLayout->addWidget(m_emptyLabel);
 
     m_scrollArea = new QScrollArea(timelinePanel);
+    m_scrollArea->setObjectName("timelineScrollArea");
     m_scrollArea->setWidgetResizable(true);
     m_scrollArea->setFrameShape(QFrame::NoFrame);
     m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -286,13 +290,14 @@ ReviewTimelinePane::ReviewTimelinePane(QWidget *parent)
     timelineLayout->addWidget(m_scrollArea, 1);
 
     QWidget *previewPanel = new QWidget(this);
+    previewPanel->setObjectName("timelinePreviewPanel");
     QVBoxLayout *previewLayout = new QVBoxLayout(previewPanel);
     previewLayout->setContentsMargins(0, 0, 0, 0);
     previewLayout->setSpacing(10);
 
     m_preview = new PreviewPane(previewPanel);
     m_preview->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    m_preview->setHtml(tr("<div style='color:#8a8a8a;padding:24px;'>点击左侧时间轴上的笔记卡片进行预览。</div>"));
+    m_preview->setHtml(tr("<div style='color:#81a1c1;padding:24px;'>点击左侧时间轴上的笔记卡片进行预览。</div>"));
 
     QWidget *buttonBar = new QWidget(previewPanel);
     QHBoxLayout *buttonLayout = new QHBoxLayout(buttonBar);
@@ -345,29 +350,61 @@ ReviewTimelinePane::ReviewTimelinePane(QWidget *parent)
     });
     updateReviewButtons();
 
-    setStyleSheet(
+    applyTheme();
+}
+
+void ReviewTimelinePane::setDarkMode(bool dark)
+{
+    if (m_darkMode == dark)
+        return;
+
+    m_darkMode = dark;
+    if (m_preview)
+        m_preview->setDarkMode(dark);
+    applyTheme();
+}
+
+void ReviewTimelinePane::applyTheme()
+{
+    QString background = m_darkMode ? QStringLiteral("#2E3440") : QStringLiteral("#ffffff");
+    QString panelBackground = m_darkMode ? QStringLiteral("#2E3440") : QStringLiteral("#ffffff");
+    QString contentBackground = m_darkMode ? QStringLiteral("#2E3440") : QStringLiteral("#ffffff");
+    QString scrollBackground = m_darkMode ? QStringLiteral("#2E3440") : QStringLiteral("#ffffff");
+    QString cardText = m_darkMode ? QStringLiteral("#ffffff") : QStringLiteral("#0e0e0e");
+    QString strategyCardBg = m_darkMode ? QStringLiteral("rgba(46,128,242,0.24)") : QStringLiteral("rgba(46,128,242,0.12)");
+    QString strategyCardHoverBg = m_darkMode ? QStringLiteral("rgba(46,128,242,0.34)") : QStringLiteral("rgba(46,128,242,0.22)");
+    QString manualCardBg = m_darkMode ? QStringLiteral("rgba(255,193,7,0.28)") : QStringLiteral("rgba(255,193,7,0.18)");
+    QString manualCardHoverBg = m_darkMode ? QStringLiteral("rgba(255,193,7,0.38)") : QStringLiteral("rgba(255,193,7,0.28)");
+
+    setStyleSheet(QString(
+        "QWidget#reviewTimelinePane { background-color: %1; }"
+        "QWidget#timelinePanel { background-color: %2; }"
+        "QWidget#timelinePreviewPanel { background-color: %2; }"
+        "QScrollArea#timelineScrollArea { background-color: %4; border: none; }"
+        "QScrollArea#timelineScrollArea > QWidget > QWidget { background-color: %3; }"
+        "QWidget#timelineContent { background-color: %3; border-bottom: 1px solid rgba(129,161,193,0.28); }"
         "QLabel#timelineTitle { font-size: 24px; font-weight: 700; }"
-        "QLabel#timelineSubtitle { color: #8a8a8a; }"
-        "QLabel#timelineEmptyState { color: #8a8a8a; padding: 4px; }"
-        "QWidget#timelineContent { border-bottom: 1px solid rgba(128,128,128,0.22); }"
-        "QFrame#timelinePreviewDivider { background: rgba(128,128,128,0.22); }"
+        "QLabel#timelineSubtitle { color: #81a1c1; }"
+        "QLabel#timelineEmptyState { color: #81a1c1; padding: 4px; }"
+        "QFrame#timelinePreviewDivider { background: rgba(129,161,193,0.28); }"
         "QWidget#timelineDayColumn { background: transparent; border-radius: 10px; }"
-        "QWidget#timelineDayColumn[hasReviews=\"true\"] { background: rgba(128,128,128,0.035); }"
-        "QWidget#timelineDayColumn[dropHighlighted=\"true\"] { background: rgba(46,128,242,0.14); }"
-        "QLabel#timelineNodeLabel { color: #8a8a8a; font-size: 12px; font-weight: 600; }"
-        "QLabel#timelineNodeDot { color: rgba(128,128,128,0.45); font-size: 10px; }"
-        "QLabel#timelineNodeDot[hasReviews=\"true\"] { color: rgba(46,128,242,0.65); }"
-        "QPushButton#timelineStrategyNoteButton { background: rgba(46,128,242,0.12); color: palette(text); border: 1px solid rgba(46,128,242,0.32); border-radius: 8px; padding: 6px 10px; text-align: left; font-weight: 600; font-size: 13px; }"
-        "QPushButton#timelineStrategyNoteButton:hover { background: rgba(46,128,242,0.22); border-color: #2e80f2; }"
-        "QPushButton#timelineManualNoteButton { background: rgba(255,193,7,0.18); color: palette(text); border: 1px solid rgba(255,193,7,0.58); border-radius: 8px; padding: 6px 10px; text-align: left; font-weight: 600; font-size: 13px; }"
-        "QPushButton#timelineManualNoteButton:hover { background: rgba(255,193,7,0.28); border-color: #ffc107; }"
-        "QPushButton#timelineRememberButton { background: #34c759; color: #ffffff; border: none; border-radius: 7px; padding: 7px 10px; font-weight: 600; }"
-        "QPushButton#timelineForgetButton { background: #ff3b30; color: #ffffff; border: none; border-radius: 7px; padding: 7px 10px; font-weight: 600; }"
-        "QPushButton#timelineDeleteButton { background: #ff9500; color: #ffffff; border: none; border-radius: 7px; padding: 7px 10px; font-weight: 600; }"
-        "QPushButton#timelineStrategyButton { background: transparent; color: palette(text); border: 1px solid rgba(128,128,128,0.28); border-radius: 7px; padding: 7px 10px; }"
-        "QPushButton#timelineRememberButton:disabled, QPushButton#timelineForgetButton:disabled, QPushButton#timelineDeleteButton:disabled, QPushButton#timelineStrategyButton:disabled { background: rgba(128,128,128,0.18); color: rgba(128,128,128,0.65); border: none; }"
-        "QPushButton:disabled { background: rgba(128,128,128,0.18); color: rgba(128,128,128,0.65); border: none; }"
-    );
+        "QWidget#timelineDayColumn[hasReviews=\"true\"] { background: rgba(129,161,193,0.08); }"
+        "QWidget#timelineDayColumn[dropHighlighted=\"true\"] { background: rgba(129,161,193,0.22); }"
+        "QLabel#timelineNodeLabel { color: #81a1c1; font-size: 12px; font-weight: 600; }"
+        "QLabel#timelineNodeDot { color: rgba(129,161,193,0.48); font-size: 10px; }"
+        "QLabel#timelineNodeDot[hasReviews=\"true\"] { color: #81a1c1; }"
+        "QPushButton#timelineStrategyNoteButton { background: %6; color: %5; border: 1px solid rgba(46,128,242,0.32); border-radius: 8px; padding: 6px 10px; text-align: left; font-weight: 600; font-size: 13px; }"
+        "QPushButton#timelineStrategyNoteButton:hover { background: %7; border-color: #2e80f2; }"
+        "QPushButton#timelineManualNoteButton { background: %8; color: %5; border: 1px solid rgba(255,193,7,0.58); border-radius: 8px; padding: 6px 10px; text-align: left; font-weight: 600; font-size: 13px; }"
+        "QPushButton#timelineManualNoteButton:hover { background: %9; border-color: #ffc107; }"
+        "QPushButton#timelineRememberButton { background: #A3BE8C; color: #2E3440; border: none; border-radius: 7px; padding: 7px 10px; font-weight: 600; }"
+        "QPushButton#timelineForgetButton { background: #BF616A; color: #ffffff; border: none; border-radius: 7px; padding: 7px 10px; font-weight: 600; }"
+        "QPushButton#timelineDeleteButton { background: #D08770; color: #ffffff; border: none; border-radius: 7px; padding: 7px 10px; font-weight: 600; }"
+        "QPushButton#timelineStrategyButton { background: transparent; color: palette(text); border: 1px solid rgba(129,161,193,0.38); border-radius: 7px; padding: 7px 10px; }"
+        "QPushButton#timelineRememberButton:disabled, QPushButton#timelineForgetButton:disabled, QPushButton#timelineDeleteButton:disabled, QPushButton#timelineStrategyButton:disabled { background: rgba(129,161,193,0.14); color: rgba(129,161,193,0.70); border: none; }"
+        "QPushButton:disabled { background: rgba(129,161,193,0.14); color: rgba(129,161,193,0.70); border: none; }"
+    ).arg(background, panelBackground, contentBackground, scrollBackground, cardText,
+          strategyCardBg, strategyCardHoverBg, manualCardBg, manualCardHoverBg));
 }
 
 QDate ReviewTimelinePane::startDate() const
@@ -450,7 +487,7 @@ void ReviewTimelinePane::clearPreview()
 {
     m_selectedNotePath.clear();
     m_selectedItem = ReviewPlanItem();
-    m_preview->setHtml(tr("<div style='color:#8a8a8a;padding:24px;'>点击左侧时间轴上的笔记卡片进行预览。</div>"));
+    m_preview->setHtml(tr("<div style='color:#81a1c1;padding:24px;'>点击左侧时间轴上的笔记卡片进行预览。</div>"));
     updateReviewButtons();
 }
 

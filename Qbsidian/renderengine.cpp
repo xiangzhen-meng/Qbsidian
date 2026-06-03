@@ -133,7 +133,7 @@ QString RenderEngine::render(const QVector<LogicalBlock> &blocks)
             case BlockType::CodeBlockStart:
             {
                 closeAllLists();
-                html += "<table class=\"md-code-block\" width=\"100%\"><tr><td><pre>";
+                html += "<table class=\"md-code-block\" width=\"100%\" cellspacing=\"0\" cellpadding=\"12\"><tr><td><pre>";
                 break;
             }
             case BlockType::CodeBlockLine:
@@ -159,9 +159,15 @@ QString RenderEngine::render(const QVector<LogicalBlock> &blocks)
             case BlockType::Blockquote:
             {
                 closeAllLists();
-                html += "<blockquote>";
-                html += InlineParser::process(block.content) ;
-                html += "</blockquote>\n";
+                html += "<table class=\"md-blockquote\" width=\"100%\" cellspacing=\"0\" cellpadding=\"8\"><tr><td>";
+                while(i < blocks.size() && blocks[i].type == BlockType::Blockquote)
+                {
+                    if(!blocks[i].content.isEmpty())
+                        html += "<p>" + InlineParser::process(blocks[i].content) + "</p>";
+                    ++i;
+                }
+                --i;
+                html += "</td></tr></table>";
                 break;
             }
 

@@ -84,6 +84,7 @@ public:
     QDate startDate() const;
     QDate endDate() const;
     void setReviewPlan(const QList<ReviewPlanItem> &reviews);
+    void setDarkMode(bool dark);
 
 signals:
     void noteDropped(const QString &absolutePath, const QDate &date);
@@ -107,6 +108,7 @@ private:
     void updateContentHeight(const QMap<QDate, QList<ReviewPlanItem>> &grouped);
     QMap<QDate, QList<ReviewPlanItem>> groupedReviews() const;
     void updateReviewButtons();
+    void applyTheme();
 
     QList<ReviewPlanItem> m_reviews;
     QList<ReviewTimelineNode *> m_nodes;
@@ -122,6 +124,7 @@ private:
     QPushButton *m_strategyButton;
     QString m_selectedNotePath;
     ReviewPlanItem m_selectedItem;
+    bool m_darkMode;
 };
 
 #endif // REVIEWTIMELINEPANE_H

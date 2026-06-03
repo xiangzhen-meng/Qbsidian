@@ -52,3 +52,7 @@
 2.  **第二阶段：** 实现 `[[ ]] `双链语法与 `#标签 `的自动识别，完成通过超链接点击进行文件间的无缝跳转功能；完成跨文件的全局关键字搜索与标签分类检索功能。
 3.  **第三阶段：** 集中开发复习功能。利用正则提取笔记内的特定问答语法生成习题库；实现复习规划功能。
 4.  **第四阶段：**提取双链数据构建动态知识图谱；测试用例并修复 Bug；美化 UI。
+
+## 五、 样式来源说明
+
+UI 配色与 Markdown 预览的部分样式参考并改写自 Blue Topaz 的 Topaz-Nord 配色方案（https://github.com/PKM-er/Blue-Topaz_Obsidian-css）。感谢 WhyI（https://github.com/whyt-byte）与 pkmer.cn（https://pkmer.cn）。

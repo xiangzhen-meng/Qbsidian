@@ -170,14 +170,17 @@ QVector<LogicalBlock> BlockParser::parseBlocks(const QString &text)
             continue;
         }
 
-        else if(remaining.startsWith("> "))
+        else if(remaining.startsWith(">"))
         {
             if(!paragraphBuffer.isEmpty())
             {
                 ans.push_back({BlockType::Paragraph, paragraphBuffer, 0});
                 paragraphBuffer.clear();
             }
-            ans.push_back({BlockType::Blockquote, remaining.mid(2).trimmed(), tmp.indentLevel});
+            QString quoteContent = remaining.mid(1);
+            if(quoteContent.startsWith(" "))
+                quoteContent = quoteContent.mid(1);
+            ans.push_back({BlockType::Blockquote, quoteContent.trimmed(), tmp.indentLevel});
             continue;
         }
 
