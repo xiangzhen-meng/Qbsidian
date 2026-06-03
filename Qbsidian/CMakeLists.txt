@@ -48,6 +48,8 @@ set(PROJECT_SOURCES
         questionextractor.cpp
         questionextractor.h
         questiondata.h
+        practicedialog.cpp
+        practicedialog.h
         forcedirectedgraph.h
         forcedirectedgraph.cpp
         ${TS_FILES}

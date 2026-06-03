@@ -4,11 +4,14 @@
 #include "editorpane.h"
 #include "previewpane.h"
 #include "reviewtimelinepane.h"
+#include "practicedialog.h"
 #include "notemanager.h"
 #include "ReviewManager.h"
+#include "questionextractor.h"
 
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QApplication>
 #include <QCloseEvent>
 #include <QTimer>
 #include <QSplitter>
@@ -310,6 +313,11 @@ void MainWindow::setupMenuBar()
     ui->actionSave->setIcon(QIcon(":/icons/save.svg"));
     ui->actionUndo->setEnabled(false);
     ui->actionRedo->setEnabled(false);
+
+    QMenu *practiceMenu = menuBar()->addMenu(tr("练习(&P)"));
+    QAction *startPracticeAction = practiceMenu->addAction(tr("开始抽查练习"));
+    connect(startPracticeAction, &QAction::triggered,
+            this, &MainWindow::onPracticeRequested);
 }
 
 void MainWindow::connectSignals()
@@ -328,6 +336,8 @@ void MainWindow::connectSignals()
             this, &MainWindow::onReviewTimelineRequested);
     connect(m_fileExplorer, &FileExplorerPane::reviewStrategyRequested,
             this, &MainWindow::onReviewStrategyRequested);
+    connect(m_fileExplorer, &FileExplorerPane::practiceRequested,
+            this, &MainWindow::onPracticeRequested);
 
     connect(m_tabWidget, &QTabWidget::tabCloseRequested,
             this, &MainWindow::onTabCloseRequested);
@@ -1050,4 +1060,31 @@ void MainWindow::refreshReviewTimeline()
         return;
 
     m_reviewTimeline->setReviewPlan(m_reviewManager->reviewPlanBetween(m_reviewTimeline->startDate(), m_reviewTimeline->endDate()));
+}
+
+void MainWindow::onPracticeRequested()
+{
+    if (m_vaultPath.isEmpty()) {
+        QMessageBox::information(this, tr("提示"), tr("请先选择知识库目录。"));
+        return;
+    }
+
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+
+    QuestionExtractor extractor;
+    QList<ExtractedQuestion> practiceList;
+    practiceList.append(extractor.extractAllFromDirectory(m_vaultPath));
+    practiceList.append(extractor.extractFromPreset());
+
+    QApplication::restoreOverrideCursor();
+
+    if (practiceList.isEmpty()) {
+        QMessageBox::information(this, tr("提示"), tr("当前题库为空，请先在笔记中添加题目！"));
+        return;
+    }
+
+    PracticeDialog dialog(practiceList, m_themeMode == ThemeMode::Dark, this);
+    dialog.exec();
+
+    m_fileExplorer->setPracticeButtonChecked(false);
 }
