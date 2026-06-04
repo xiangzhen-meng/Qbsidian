@@ -4,19 +4,16 @@
 #include <QJsonArray>
 #include <QDebug>
 #include <QFileInfo>
+#include <QDir>
 #include <algorithm>
 
 // ==========================================
 // 构造与析构函数
 // ==========================================
 ReviewManager::ReviewManager() {
-    m_globalDailyLimit = 50; // 默认每日复习上限
+    m_globalDailyLimit = 50;
 
-    // 1. 注册系统内置的标准艾宾浩斯策略
     registerStrategy(new EbbinghausStrategy());
-
-    // 2. 加载本地数据（会自动加载自定义策略和笔记数据）
-    loadData();
 }
 
 ReviewManager::~ReviewManager() {
@@ -25,14 +22,32 @@ ReviewManager::~ReviewManager() {
     m_strategies.clear();
 }
 
+void ReviewManager::setVaultPath(const QString &vaultPath) {
+    if (m_vaultPath == vaultPath)
+        return;
+
+    m_vaultPath = vaultPath;
+    m_dataFilePath = QDir(vaultPath).absoluteFilePath(".qbsidian/review_data.json");
+
+    m_noteEntities.clear();
+    m_manualSchedules.clear();
+
+    loadData();
+}
+
 // ==========================================
 // 系统初始化与持久化（JSON 读写逻辑）
 // ==========================================
 
 void ReviewManager::loadData() {
-    QFile file("review_data.json");
+    if (m_dataFilePath.isEmpty()) {
+        qDebug() << "vaultPath 尚未设置，跳过加载复习数据。";
+        return;
+    }
+
+    QFile file(m_dataFilePath);
     if (!file.open(QIODevice::ReadOnly)) {
-        qDebug() << "未找到 review_data.json，系统将初始化空数据。";
+        qDebug() << "未找到" << m_dataFilePath << "，系统将初始化空数据。";
         return;
     }
 
@@ -147,13 +162,18 @@ void ReviewManager::saveData() {
     root["manualSchedules"] = scheduleArray;
 
     // 3. 写入文件
-    QFile file("review_data.json");
+    if (m_dataFilePath.isEmpty())
+        return;
+
+    QDir().mkpath(QFileInfo(m_dataFilePath).absolutePath());
+
+    QFile file(m_dataFilePath);
     if (file.open(QIODevice::WriteOnly)) {
         QJsonDocument doc(root);
-        file.write(doc.toJson(QJsonDocument::Indented)); // 使用缩进格式保存，方便阅读
+        file.write(doc.toJson(QJsonDocument::Indented));
         file.close();
     } else {
-        qWarning() << "无法写入本地 review_data.json 数据文件";
+        qWarning() << "无法写入本地复习数据文件:" << m_dataFilePath;
     }
 }
 
@@ -498,4 +518,67 @@ void ReviewManager::removeNoteRecord(const QString& noteId) {
         saveData();                   // 立即保存同步到磁盘
     }
     removeManualSchedulesForNote(noteId);
+}
+
+void ReviewManager::renameNoteRecord(const QString& oldNoteId, const QString& newNoteId) {
+    if (oldNoteId == newNoteId)
+        return;
+
+    bool changed = false;
+
+    if (m_noteEntities.contains(oldNoteId)) {
+        ReviewEntity entity = m_noteEntities.take(oldNoteId);
+        entity.noteId = newNoteId;
+        entity.noteTitle = QFileInfo(newNoteId).completeBaseName();
+        m_noteEntities.insert(newNoteId, entity);
+        changed = true;
+    }
+
+    for (ManualReviewSchedule &schedule : m_manualSchedules) {
+        if (schedule.notePath == oldNoteId) {
+            schedule.notePath = newNoteId;
+            schedule.noteTitle = QFileInfo(newNoteId).completeBaseName();
+            changed = true;
+        }
+    }
+
+    if (changed)
+        saveData();
+}
+
+void ReviewManager::renameNoteRecordsPrefix(const QString& oldPrefix, const QString& newPrefix) {
+    if (oldPrefix == newPrefix)
+        return;
+
+    QMap<QString, ReviewEntity> updated;
+    QList<QString> toRemove;
+
+    for (auto it = m_noteEntities.constBegin(); it != m_noteEntities.constEnd(); ++it) {
+        if (it.key() == oldPrefix || it.key().startsWith(oldPrefix + "/")) {
+            QString newKey = newPrefix + it.key().mid(oldPrefix.length());
+            ReviewEntity entity = it.value();
+            entity.noteId = newKey;
+            updated.insert(newKey, entity);
+            toRemove.append(it.key());
+        }
+    }
+
+    for (const QString &key : toRemove)
+        m_noteEntities.remove(key);
+
+    for (auto it = updated.constBegin(); it != updated.constEnd(); ++it)
+        m_noteEntities.insert(it.key(), it.value());
+
+    bool changed = !toRemove.isEmpty();
+
+    for (ManualReviewSchedule &schedule : m_manualSchedules) {
+        if (schedule.notePath == oldPrefix || schedule.notePath.startsWith(oldPrefix + "/")) {
+            schedule.notePath = newPrefix + schedule.notePath.mid(oldPrefix.length());
+            schedule.noteTitle = QFileInfo(schedule.notePath).completeBaseName();
+            changed = true;
+        }
+    }
+
+    if (changed)
+        saveData();
 }

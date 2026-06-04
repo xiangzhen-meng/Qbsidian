@@ -81,8 +81,10 @@ signals:
     void searchResultClicked(const QString &filePath, int lineNumber);
     void reviewTimelineRequested();
     void reviewStrategyRequested(const QString &absoluteFilePath, bool fixedInterval);
+    void folderReviewStrategyRequested(const QString &absolutePath, bool fixedInterval);
     void practiceRequested();
     void graphRequested();
+    void renameRequested(const QString &absolutePath, const QString &newName);
 
 private slots:
     void onItemClicked(const QModelIndex &index);

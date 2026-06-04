@@ -32,13 +32,17 @@ struct ReviewPlanItem {
 
 class ReviewManager {
 private:
-    QMap<QString, ReviewEntity> m_noteEntities;       // 内存中的所有笔记复习数据 (Key: noteId)
-    QMap<QString, IReviewStrategy*> m_strategies;     // 注册的所有复习策略 (Key: strategyId)
+    QMap<QString, ReviewEntity> m_noteEntities;
+    QMap<QString, IReviewStrategy*> m_strategies;
     QList<ManualReviewSchedule> m_manualSchedules;
-    int m_globalDailyLimit = 50; // 全局设定的每日复习上限数
+    int m_globalDailyLimit = 50;
+    QString m_vaultPath;
+    QString m_dataFilePath;
 public:
     ReviewManager();
     ~ReviewManager();
+
+    void setVaultPath(const QString &vaultPath);
 
     // ---------------- 系统初始化与持久化 ----------------
     void loadData();  // 从本地 .json 文件读取实体和自定义策略
@@ -95,6 +99,8 @@ public:
     void setSpecificReviewDate(const QString& noteId, const QDateTime& specificDate);
     // 在 ReviewManager.h 的 public 下追加：
     void removeNoteRecord(const QString& noteId);
+    void renameNoteRecord(const QString& oldNoteId, const QString& newNoteId);
+    void renameNoteRecordsPrefix(const QString& oldPrefix, const QString& newPrefix);
 };
 
 #endif // REVIEWMANAGER_H

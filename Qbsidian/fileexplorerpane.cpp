@@ -424,8 +424,11 @@ void FileExplorerPane::onCustomContextMenu(const QPoint &pos)
     QMenu menu(m_treeView);
     QAction *newNoteAction = menu.addAction(tr("新建笔记"));
     QAction *newFolderAction = menu.addAction(tr("新建文件夹"));
+    QAction *renameAction = nullptr;
     QAction *ebbinghausAction = nullptr;
     QAction *fixedIntervalAction = nullptr;
+    QAction *folderEbbinghausAction = nullptr;
+    QAction *folderFixedIntervalAction = nullptr;
     QAction *deleteAction = nullptr;
     if (proxyIndex.isValid()) {
         QFileInfo fileInfo = m_model->fileInfo(sourceIndex);
@@ -434,8 +437,14 @@ void FileExplorerPane::onCustomContextMenu(const QPoint &pos)
             QMenu *reviewMenu = menu.addMenu(tr("加入复习计划"));
             ebbinghausAction = reviewMenu->addAction(tr("艾宾浩斯"));
             fixedIntervalAction = reviewMenu->addAction(tr("固定间隔 + 休息日"));
+        } else if (fileInfo.isDir()) {
+            menu.addSeparator();
+            QMenu *batchReviewMenu = menu.addMenu(tr("批量加入复习计划"));
+            folderEbbinghausAction = batchReviewMenu->addAction(tr("艾宾浩斯"));
+            folderFixedIntervalAction = batchReviewMenu->addAction(tr("固定间隔 + 休息日"));
         }
         menu.addSeparator();
+        renameAction = menu.addAction(tr("重命名"));
         deleteAction = menu.addAction(tr("删除"));
     }
 
@@ -457,6 +466,15 @@ void FileExplorerPane::onCustomContextMenu(const QPoint &pos)
                                              QLineEdit::Normal, QString(), &ok);
         if (ok && !name.isEmpty())
             emit newFolderRequested(dirPath, name);
+    } else if (renameAction && chosen == renameAction) {
+        QFileInfo info = m_model->fileInfo(sourceIndex);
+        QString defaultName = info.isDir() ? info.fileName() : info.completeBaseName();
+        bool ok = false;
+        QString name = QInputDialog::getText(this, tr("重命名"),
+                                             tr("新名称:"),
+                                             QLineEdit::Normal, defaultName, &ok);
+        if (ok && !name.isEmpty())
+            emit renameRequested(info.absoluteFilePath(), name);
     } else if (deleteAction && chosen == deleteAction) {
         QFileInfo info = m_model->fileInfo(sourceIndex);
         emit deleteRequested(info.absoluteFilePath());
@@ -464,6 +482,10 @@ void FileExplorerPane::onCustomContextMenu(const QPoint &pos)
                || (fixedIntervalAction && chosen == fixedIntervalAction)) {
         QFileInfo info = m_model->fileInfo(sourceIndex);
         emit reviewStrategyRequested(info.absoluteFilePath(), chosen == fixedIntervalAction);
+    } else if ((folderEbbinghausAction && chosen == folderEbbinghausAction)
+               || (folderFixedIntervalAction && chosen == folderFixedIntervalAction)) {
+        QFileInfo info = m_model->fileInfo(sourceIndex);
+        emit folderReviewStrategyRequested(info.absoluteFilePath(), chosen == folderFixedIntervalAction);
     }
 }
 

@@ -8,11 +8,9 @@
 #include "graphpane.h"
 #include "notemanager.h"
 #include "ReviewManager.h"
-#include "questionextractor.h"
 
 #include <QFileDialog>
 #include <QMessageBox>
-#include <QApplication>
 #include <QCloseEvent>
 #include <QTimer>
 #include <QSplitter>
@@ -76,6 +74,7 @@ MainWindow::MainWindow(QWidget *parent)
     QString vault = promptVaultDirectory();
     if (!vault.isEmpty()) {
         m_vaultPath = vault;
+        m_reviewManager->setVaultPath(m_vaultPath);
         m_fileExplorer->setRootPath(m_vaultPath);
         m_fileExplorer->setVaultPath(m_vaultPath);
         setWindowTitle(QString());
@@ -350,10 +349,14 @@ void MainWindow::connectSignals()
             this, &MainWindow::onReviewTimelineRequested);
     connect(m_fileExplorer, &FileExplorerPane::reviewStrategyRequested,
             this, &MainWindow::onReviewStrategyRequested);
+    connect(m_fileExplorer, &FileExplorerPane::folderReviewStrategyRequested,
+            this, &MainWindow::onFolderReviewStrategyRequested);
     connect(m_fileExplorer, &FileExplorerPane::practiceRequested,
             this, &MainWindow::onPracticeRequested);
     connect(m_fileExplorer, &FileExplorerPane::graphRequested,
             this, &MainWindow::onGraphRequested);
+    connect(m_fileExplorer, &FileExplorerPane::renameRequested,
+            this, &MainWindow::onRenameRequested);
 
     connect(m_tabWidget, &QTabWidget::tabCloseRequested,
             this, &MainWindow::onTabCloseRequested);
@@ -1035,6 +1038,87 @@ void MainWindow::onReviewStrategyRequested(const QString &absolutePath, bool fix
     ui->statusbar->showMessage(tr("已加入复习计划: %1").arg(info.completeBaseName()));
 }
 
+void MainWindow::onFolderReviewStrategyRequested(const QString &absolutePath, bool fixedInterval)
+{
+    QFileInfo info(absolutePath);
+    if (!info.exists() || !info.isDir())
+        return;
+
+    QDirIterator it(absolutePath, {"*.md"}, QDir::Files, QDirIterator::Subdirectories);
+    QStringList paths;
+    while (it.hasNext())
+        paths.append(it.next());
+
+    if (paths.isEmpty()) {
+        QMessageBox::information(this, tr("提示"), tr("所选文件夹没有 Markdown 笔记。"));
+        return;
+    }
+
+    QString strategyId = QStringLiteral("standard_ebbinghaus");
+    if (fixedInterval) {
+        strategyId = promptFixedIntervalStrategy();
+        if (strategyId.isEmpty())
+            return;
+    }
+
+    QStringList existingPaths;
+    for (const QString &path : paths) {
+        if (m_reviewManager->hasReviewRecord(path))
+            existingPaths.append(path);
+    }
+
+    bool applyToExisting = true;
+    if (!existingPaths.isEmpty()) {
+        QStringList displayList;
+        const int maxDisplay = 8;
+        for (int i = 0; i < qMin(existingPaths.size(), maxDisplay); ++i)
+            displayList.append(QFileInfo(existingPaths.at(i)).fileName());
+        QString body = displayList.join("\n");
+        if (existingPaths.size() > maxDisplay)
+            body += tr("\n\n以及其他 %1 个文件").arg(existingPaths.size() - maxDisplay);
+
+        QMessageBox box(this);
+        box.setIcon(QMessageBox::Question);
+        box.setWindowTitle(tr("已有复习计划"));
+        box.setText(tr("以下 %1 个文件已经在复习计划中，是否更改它们的复习策略？")
+                        .arg(existingPaths.size()));
+        box.setInformativeText(body);
+        QPushButton *yesButton = box.addButton(tr("是"), QMessageBox::YesRole);
+        QPushButton *noButton = box.addButton(tr("否，跳过这些文件"), QMessageBox::NoRole);
+        box.addButton(tr("取消"), QMessageBox::RejectRole);
+        box.setDefaultButton(yesButton);
+        box.exec();
+
+        if (box.clickedButton() == yesButton) {
+            applyToExisting = true;
+        } else if (box.clickedButton() == noButton) {
+            applyToExisting = false;
+        } else {
+            return;
+        }
+    }
+
+    int added = 0;
+    int updated = 0;
+    for (const QString &path : paths) {
+        bool hasRecord = m_reviewManager->hasReviewRecord(path);
+        if (hasRecord && !applyToExisting)
+            continue;
+        applyReviewStrategy(path, QFileInfo(path).completeBaseName(), strategyId);
+        if (hasRecord)
+            updated++;
+        else
+            added++;
+    }
+
+    refreshReviewTimeline();
+
+    if (applyToExisting && updated > 0)
+        ui->statusbar->showMessage(tr("已处理 %1 篇笔记，其中 %2 篇已更新复习策略").arg(paths.size()).arg(updated));
+    else
+        ui->statusbar->showMessage(tr("已将 %1 篇笔记加入复习计划").arg(added));
+}
+
 void MainWindow::onReviewTimelineRequested()
 {
     ensureReviewTimelineTab();
@@ -1116,21 +1200,7 @@ void MainWindow::onPracticeRequested()
         return;
     }
 
-    QApplication::setOverrideCursor(Qt::WaitCursor);
-
-    QuestionExtractor extractor;
-    QList<ExtractedQuestion> practiceList;
-    practiceList.append(extractor.extractAllFromDirectory(m_vaultPath));
-    practiceList.append(extractor.extractFromPreset());
-
-    QApplication::restoreOverrideCursor();
-
-    if (practiceList.isEmpty()) {
-        QMessageBox::information(this, tr("提示"), tr("当前题库为空，请先在笔记中添加题目！"));
-        return;
-    }
-
-    PracticeDialog dialog(practiceList, m_themeMode == ThemeMode::Dark, this);
+    PracticeDialog dialog(m_vaultPath, m_themeMode == ThemeMode::Dark, this);
     dialog.exec();
 
     m_fileExplorer->setPracticeButtonChecked(false);
@@ -1164,4 +1234,72 @@ void MainWindow::ensureGraphTab()
     });
 
     m_graphPane->loadVault(m_vaultPath);
+}
+
+void MainWindow::onRenameRequested(const QString &absolutePath, const QString &newName)
+{
+    if (newName.isEmpty())
+        return;
+
+    QFileInfo oldInfo(absolutePath);
+    bool oldIsDir = oldInfo.isDir();
+
+    QString currentName = oldIsDir ? oldInfo.fileName() : oldInfo.completeBaseName();
+    if (newName == currentName)
+        return;
+
+    if (newName.contains('/') || newName.contains('\\')) {
+        QMessageBox::warning(this, tr("非法名称"), tr("文件名不能包含路径分隔符。"));
+        return;
+    }
+
+    QString dir = oldInfo.absoluteDir().absolutePath();
+    QString newPath;
+    if (!oldIsDir && oldInfo.suffix() == "md")
+        newPath = dir + "/" + newName + ".md";
+    else
+        newPath = dir + "/" + newName;
+
+    m_noteManagerHadError = false;
+    if (!m_noteManager->renameItem(absolutePath, newPath))
+        return;
+
+    if (oldIsDir) {
+        QStringList keysNeedingUpdate;
+        for (NoteTab *tab : m_tabsByPath) {
+            if (tab->filePath == absolutePath || tab->filePath.startsWith(absolutePath + "/"))
+                keysNeedingUpdate.append(tab->filePath);
+        }
+
+        for (const QString &oldKey : keysNeedingUpdate) {
+            NoteTab *tab = m_tabsByPath.take(oldKey);
+            QString relative = oldKey.mid(absolutePath.length());
+            tab->filePath = newPath + relative;
+            m_tabsByPath.insert(tab->filePath, tab);
+            updateTabTitle(tab);
+        }
+
+        m_reviewManager->renameNoteRecordsPrefix(absolutePath, newPath);
+    } else {
+        if (m_tabsByPath.contains(absolutePath)) {
+            NoteTab *tab = m_tabsByPath.take(absolutePath);
+            tab->filePath = newPath;
+            m_tabsByPath.insert(newPath, tab);
+            updateTabTitle(tab);
+        }
+
+        m_reviewManager->renameNoteRecord(absolutePath, newPath);
+    }
+
+    m_fileExplorer->setRootPath(m_vaultPath);
+    refreshReviewTimeline();
+
+    if (m_graphPane)
+        m_graphPane->loadVault(m_vaultPath);
+
+    QFileInfo newInfo(newPath);
+    if (!oldIsDir && newInfo.suffix() == "md")
+        openFileInTab(newPath);
+
+    ui->statusbar->showMessage(tr("已重命名: %1").arg(newInfo.fileName()));
 }

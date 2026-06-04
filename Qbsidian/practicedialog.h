@@ -14,19 +14,25 @@ class PracticeDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit PracticeDialog(const QList<ExtractedQuestion> &questions, bool darkMode, QWidget *parent = nullptr);
+    explicit PracticeDialog(const QString &vaultPath, bool darkMode, QWidget *parent = nullptr);
 
 private slots:
     void onShowAnswer();
     void onKnown();
     void onUnknown();
+    void onSelectFolder();
 
 private:
     void showCurrentQuestion();
     void advanceQuestion();
+    bool loadQuestionsFromDirectory(const QString &directory, bool showEmptyMessage);
+    void applyShuffleAndLimit(QList<ExtractedQuestion> &questions);
     QString buildStyleSheet() const;
     QString buildContentStyleSheet() const;
     QString renderQuestionHtml(const ExtractedQuestion &question, bool showAnswer) const;
+
+    QString m_vaultPath;
+    QString m_currentDirectory;
 
     QList<ExtractedQuestion> m_questions;
     int m_currentIndex;
@@ -34,6 +40,7 @@ private:
     bool m_darkMode;
 
     QTextBrowser *m_browser;
+    QPushButton *m_selectFolderButton;
     QPushButton *m_showAnswerButton;
     QPushButton *m_knownButton;
     QPushButton *m_unknownButton;
