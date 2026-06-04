@@ -257,7 +257,7 @@ void AIAssistantPane::updateTheme()
 {
     setStyleSheet(m_darkMode
         ? QStringLiteral(
-            "QWidget#aiAssistantPane { background: #2E3440; border-left: 1px solid #2E3440; }"
+            "QWidget#aiAssistantPane { background: #2E3440; border-left: 1px solid rgba(216,222,233,0.28); }"
             "QWidget#aiHeader, QWidget#aiActionBar, QWidget#aiInputPanel { background: #2E3440; }"
             "QLabel#aiTitle { color: #eceff4; font-weight: 700; font-size: 15px; }"
             "QPushButton#aiSettingsButton { background: transparent; border: none; border-radius: 13px; }"

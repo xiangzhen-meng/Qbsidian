@@ -179,7 +179,7 @@ QString MainWindow::buildDarkQss() const
         "QMainWindow { background-color: #2E3440; }"
         "QWidget { font-family: \"LXGW WenKai Screen\", \"LXGW WenKai\", -apple-system, BlinkMacSystemFont, \"Segoe UI\", Helvetica, Arial, sans-serif; font-size: 14px; color: #d8dee9; }"
 
-        "QMenuBar { background-color: #434C5E; color: #d8dee9; border-bottom: 1px solid #2E3440; padding: 3px 0; }"
+        "QMenuBar { background-color: #434C5E; color: #d8dee9; border-bottom: 1px solid rgba(216,222,233,0.28); padding: 3px 0; }"
         "QMenuBar::item { padding: 5px 12px; background: transparent; border-radius: 5px; }"
         "QMenuBar::item:selected { background-color: rgba(129,161,193,0.22); color: #eceff4; }"
         "QMenu { background-color: #3B4252; color: #d8dee9; border: 1px solid #4C566A; border-radius: 8px; padding: 6px; }"
@@ -187,16 +187,16 @@ QString MainWindow::buildDarkQss() const
         "QMenu::item:selected { background-color: #81a1c1; color: #2E3440; }"
         "QMenu::separator { height: 1px; background: #4C566A; margin: 5px 8px; }"
 
-        "QStatusBar { background-color: #434C5E; color: #e5e9f0; border-top: 1px solid #2E3440; font-size: 12px; }"
+        "QStatusBar { background-color: #434C5E; color: #e5e9f0; border-top: 1px solid rgba(216,222,233,0.28); font-size: 12px; }"
 
-        "QSplitter::handle { background-color: #2E3440; width: 1px; height: 1px; }"
+        "QSplitter::handle { background-color: rgba(216,222,233,0.28); width: 2px; height: 2px; }"
         "QSplitter::handle:hover { background-color: #81a1c1; }"
 
         "QTabWidget#mainTabs::pane { background-color: #2E3440; border: none; }"
         "QTabWidget#mainTabs::tab-bar { background-color: #2E3440; left: 0px; }"
         "QTabWidget#mainTabs > QWidget { background-color: #2E3440; }"
         "QTabBar#mainTabBar { background-color: #2E3440; border: none; }"
-        "QTabBar#mainTabBar::tab { background-color: #2E3440; color: #d8dee9; padding: 8px 30px 8px 14px; border: none; border-right: 1px solid #2E3440; min-width: 120px; }"
+        "QTabBar#mainTabBar::tab { background-color: #2E3440; color: #d8dee9; padding: 8px 30px 8px 14px; border: none; border-right: 1px solid rgba(216,222,233,0.28); min-width: 120px; }"
         "QTabBar#mainTabBar::tab:!selected { background-color: #2E3440; }"
         "QTabBar#mainTabBar::tab:selected { background-color: #2E3440; color: #eceff4; border-top: 2px solid #81a1c1; }"
         "QTabBar#mainTabBar::tab:hover:!selected { background-color: #2E3440; color: #eceff4; }"
@@ -256,7 +256,7 @@ void MainWindow::applyWindowTheme()
         m_tabWidget->tabBar()->setStyleSheet(dark
             ? QStringLiteral(
                 "QTabBar#mainTabBar { background-color: #2E3440; border: none; }"
-                "QTabBar#mainTabBar::tab { background-color: #2E3440; color: #d8dee9; padding: 8px 30px 8px 14px; border: none; border-right: 1px solid #2E3440; min-width: 120px; }"
+                "QTabBar#mainTabBar::tab { background-color: #2E3440; color: #d8dee9; padding: 8px 30px 8px 14px; border: none; border-right: 1px solid rgba(216,222,233,0.28); min-width: 120px; }"
                 "QTabBar#mainTabBar::tab:!selected { background-color: #2E3440; }"
                 "QTabBar#mainTabBar::tab:selected { background-color: #2E3440; color: #eceff4; border-top: 2px solid #81a1c1; }"
                 "QTabBar#mainTabBar::tab:hover:!selected { background-color: #2E3440; color: #eceff4; }"

@@ -11,5 +11,7 @@
         <file>trash.svg</file>
         <file>save.svg</file>
         <file>tab-close.svg</file>
+        <file>qbsidian.svg</file>
+        <file>qbsidian.png</file>
     </qresource>
 </RCC>
