@@ -25,10 +25,13 @@ signals:
 protected:
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
+    void hoverEnterEvent(QGraphicsSceneHoverEvent *event) override;
+    void hoverLeaveEvent(QGraphicsSceneHoverEvent *event) override;
 
 private:
     QString m_id;
     bool m_darkMode;
+    bool m_hovered;
     mutable QRectF m_cachedRect;
     mutable QFont m_cachedFont;
 };

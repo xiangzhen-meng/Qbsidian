@@ -2,6 +2,7 @@
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
 #include <QGraphicsSceneMouseEvent>
+#include <QGraphicsSceneHoverEvent>
 #include <QFontMetrics>
 
 static const int kCircleRadius = 8;
@@ -12,11 +13,13 @@ GraphNodeItem::GraphNodeItem(const QString &id, bool darkMode, QGraphicsItem *pa
     : QGraphicsObject(parent)
     , m_id(id)
     , m_darkMode(darkMode)
+    , m_hovered(false)
     , m_cachedRect(-24, -24, 48, 48)
 {
     setFlag(QGraphicsItem::ItemIsMovable);
     setFlag(QGraphicsItem::ItemSendsGeometryChanges);
     setCacheMode(QGraphicsItem::DeviceCoordinateCache);
+    setAcceptHoverEvents(true);
     setToolTip(m_id);
 
     m_cachedFont.setPixelSize(11);
@@ -53,8 +56,13 @@ void GraphNodeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *, Q
     QColor nodeColor = m_darkMode ? QColor("#5e81ac") : QColor("#81a1c1");
     QColor textColor = m_darkMode ? QColor("#e5e9f0") : QColor("#2E3440");
 
-    painter->setPen(Qt::NoPen);
-    painter->setBrush(nodeColor);
+    if (m_hovered) {
+        painter->setPen(QPen(QColor("#FFD166"), 2));
+        painter->setBrush(QColor("#D4A017"));
+    } else {
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(nodeColor);
+    }
     painter->drawEllipse(QPointF(0, 0), kCircleRadius, kCircleRadius);
 
     painter->setPen(textColor);
@@ -82,4 +90,18 @@ void GraphNodeItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
 {
     event->accept();
     emit clicked(m_id);
+}
+
+void GraphNodeItem::hoverEnterEvent(QGraphicsSceneHoverEvent *event)
+{
+    Q_UNUSED(event)
+    m_hovered = true;
+    update();
+}
+
+void GraphNodeItem::hoverLeaveEvent(QGraphicsSceneHoverEvent *event)
+{
+    Q_UNUSED(event)
+    m_hovered = false;
+    update();
 }

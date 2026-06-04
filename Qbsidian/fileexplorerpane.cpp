@@ -176,6 +176,7 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     , m_reviewButton(nullptr)
     , m_practiceButton(nullptr)
     , m_graphButton(nullptr)
+    , m_aiButton(nullptr)
     , m_treeView(nullptr)
     , m_searchResults(nullptr)
     , m_model(nullptr)
@@ -235,11 +236,11 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     QWidget *toolbar = new QWidget(this);
     QHBoxLayout *toolbarLayout = new QHBoxLayout(toolbar);
     toolbarLayout->setContentsMargins(4, 4, 4, 4);
-    toolbarLayout->setSpacing(4);
+    toolbarLayout->setSpacing(6);
 
     QPushButton *btnNewNote = new QPushButton(toolbar);
     QPushButton *btnNewFolder = new QPushButton(toolbar);
-    btnNewNote->setFixedSize(20, 20);
+    btnNewNote->setFixedSize(30, 30);
     btnNewFolder->setFixedSize(30, 30);
     btnNewNote->setIcon(QIcon(":/icons/new-file.svg"));
     btnNewFolder->setIcon(QIcon(":/icons/new-folder.svg"));
@@ -255,7 +256,7 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     toolbarLayout->addWidget(btnNewFolder);
 
     m_graphButton = new QPushButton(toolbar);
-    m_graphButton->setFixedSize(20, 20);
+    m_graphButton->setFixedSize(30, 30);
     m_graphButton->setIcon(QIcon(":/icons/graph.svg"));
     m_graphButton->setIconSize(QSize(20, 20));
     m_graphButton->setToolTip(tr("知识图谱"));
@@ -263,7 +264,16 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     m_graphButton->setStyleSheet("background: transparent; border: none;");
     toolbarLayout->addWidget(m_graphButton);
 
+    m_aiButton = new QPushButton(toolbar);
+    m_aiButton->setFixedSize(30, 30);
+    m_aiButton->setIcon(QIcon(":/icons/ai-toolbar.svg"));
+    m_aiButton->setIconSize(QSize(20, 20));
+    m_aiButton->setToolTip(tr("AI 助教"));
+    m_aiButton->setFlat(true);
+    m_aiButton->setStyleSheet("background: transparent; border: none;");
+    toolbarLayout->addWidget(m_aiButton);
     toolbarLayout->addStretch();
+
     filesLayout->addWidget(toolbar);
 
     m_treeView = new QTreeView(this);
@@ -382,6 +392,9 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     connect(m_graphButton, &QPushButton::clicked, this, [this]() {
         emit graphRequested();
     });
+    connect(m_aiButton, &QPushButton::clicked, this, [this]() {
+        emit aiAssistantRequested();
+    });
 
     new AutoHideScrollAreaFilter(m_treeView, this);
     new AutoHideScrollAreaFilter(m_searchResults, this);
@@ -424,8 +437,11 @@ void FileExplorerPane::onCustomContextMenu(const QPoint &pos)
     QMenu menu(m_treeView);
     QAction *newNoteAction = menu.addAction(tr("新建笔记"));
     QAction *newFolderAction = menu.addAction(tr("新建文件夹"));
+    QAction *renameAction = nullptr;
     QAction *ebbinghausAction = nullptr;
     QAction *fixedIntervalAction = nullptr;
+    QAction *folderEbbinghausAction = nullptr;
+    QAction *folderFixedIntervalAction = nullptr;
     QAction *deleteAction = nullptr;
     if (proxyIndex.isValid()) {
         QFileInfo fileInfo = m_model->fileInfo(sourceIndex);
@@ -434,8 +450,14 @@ void FileExplorerPane::onCustomContextMenu(const QPoint &pos)
             QMenu *reviewMenu = menu.addMenu(tr("加入复习计划"));
             ebbinghausAction = reviewMenu->addAction(tr("艾宾浩斯"));
             fixedIntervalAction = reviewMenu->addAction(tr("固定间隔 + 休息日"));
+        } else if (fileInfo.isDir()) {
+            menu.addSeparator();
+            QMenu *batchReviewMenu = menu.addMenu(tr("批量加入复习计划"));
+            folderEbbinghausAction = batchReviewMenu->addAction(tr("艾宾浩斯"));
+            folderFixedIntervalAction = batchReviewMenu->addAction(tr("固定间隔 + 休息日"));
         }
         menu.addSeparator();
+        renameAction = menu.addAction(tr("重命名"));
         deleteAction = menu.addAction(tr("删除"));
     }
 
@@ -457,6 +479,15 @@ void FileExplorerPane::onCustomContextMenu(const QPoint &pos)
                                              QLineEdit::Normal, QString(), &ok);
         if (ok && !name.isEmpty())
             emit newFolderRequested(dirPath, name);
+    } else if (renameAction && chosen == renameAction) {
+        QFileInfo info = m_model->fileInfo(sourceIndex);
+        QString defaultName = info.isDir() ? info.fileName() : info.completeBaseName();
+        bool ok = false;
+        QString name = QInputDialog::getText(this, tr("重命名"),
+                                             tr("新名称:"),
+                                             QLineEdit::Normal, defaultName, &ok);
+        if (ok && !name.isEmpty())
+            emit renameRequested(info.absoluteFilePath(), name);
     } else if (deleteAction && chosen == deleteAction) {
         QFileInfo info = m_model->fileInfo(sourceIndex);
         emit deleteRequested(info.absoluteFilePath());
@@ -464,6 +495,10 @@ void FileExplorerPane::onCustomContextMenu(const QPoint &pos)
                || (fixedIntervalAction && chosen == fixedIntervalAction)) {
         QFileInfo info = m_model->fileInfo(sourceIndex);
         emit reviewStrategyRequested(info.absoluteFilePath(), chosen == fixedIntervalAction);
+    } else if ((folderEbbinghausAction && chosen == folderEbbinghausAction)
+               || (folderFixedIntervalAction && chosen == folderFixedIntervalAction)) {
+        QFileInfo info = m_model->fileInfo(sourceIndex);
+        emit folderReviewStrategyRequested(info.absoluteFilePath(), chosen == folderFixedIntervalAction);
     }
 }
 
