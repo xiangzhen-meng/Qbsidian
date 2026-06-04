@@ -29,6 +29,7 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QPushButton>
+#include <QToolButton>
 #include <QDate>
 #include <QTime>
 #include <QDialog>
@@ -111,10 +112,12 @@ QString MainWindow::buildLightQss() const
         "QTabWidget#mainTabs::tab-bar { background-color: #ffffff; left: 0px; }"
         "QTabWidget#mainTabs > QWidget { background-color: #ffffff; }"
         "QTabBar#mainTabBar { background-color: #ffffff; border: none; }"
-        "QTabBar#mainTabBar::tab { background-color: #ffffff; color: #7f7f7f; padding: 8px 14px; border: none; border-right: 1px solid #dddddd; min-width: 120px; }"
+        "QTabBar#mainTabBar::tab { background-color: #ffffff; color: #7f7f7f; padding: 8px 30px 8px 14px; border: none; border-right: 1px solid #dddddd; min-width: 120px; }"
         "QTabBar#mainTabBar::tab:!selected { background-color: #ffffff; }"
         "QTabBar#mainTabBar::tab:selected { background-color: #ffffff; color: #0e0e0e; border-top: 2px solid #81a1c1; }"
         "QTabBar#mainTabBar::tab:hover:!selected { background-color: #ffffff; color: #0e0e0e; }"
+        "QToolButton#tabCloseButton { background: transparent; border: none; border-radius: 9px; padding: 0; }"
+        "QToolButton#tabCloseButton:hover { background-color: rgba(127,127,127,0.16); }"
 
         "QTreeView { background-color: #fcfcfc; border: none; outline: none; color: #272727; selection-background-color: rgba(129,161,193,0.24); selection-color: #0e0e0e; }"
         "QTreeView::item { padding: 4px 7px 4px 5px; border-radius: 5px; min-height: 24px; }"
@@ -184,10 +187,12 @@ QString MainWindow::buildDarkQss() const
         "QTabWidget#mainTabs::tab-bar { background-color: #2E3440; left: 0px; }"
         "QTabWidget#mainTabs > QWidget { background-color: #2E3440; }"
         "QTabBar#mainTabBar { background-color: #2E3440; border: none; }"
-        "QTabBar#mainTabBar::tab { background-color: #2E3440; color: #d8dee9; padding: 8px 14px; border: none; border-right: 1px solid #2E3440; min-width: 120px; }"
+        "QTabBar#mainTabBar::tab { background-color: #2E3440; color: #d8dee9; padding: 8px 30px 8px 14px; border: none; border-right: 1px solid #2E3440; min-width: 120px; }"
         "QTabBar#mainTabBar::tab:!selected { background-color: #2E3440; }"
         "QTabBar#mainTabBar::tab:selected { background-color: #2E3440; color: #eceff4; border-top: 2px solid #81a1c1; }"
         "QTabBar#mainTabBar::tab:hover:!selected { background-color: #2E3440; color: #eceff4; }"
+        "QToolButton#tabCloseButton { background: transparent; border: none; border-radius: 9px; padding: 0; }"
+        "QToolButton#tabCloseButton:hover { background-color: rgba(216,222,233,0.16); }"
 
         "QTreeView { background-color: #3B4252; border: none; outline: none; color: #d8dee9; selection-background-color: rgba(129,161,193,0.24); selection-color: #eceff4; }"
         "QTreeView::item { padding: 4px 7px 4px 5px; border-radius: 5px; min-height: 24px; }"
@@ -242,16 +247,20 @@ void MainWindow::applyWindowTheme()
         m_tabWidget->tabBar()->setStyleSheet(dark
             ? QStringLiteral(
                 "QTabBar#mainTabBar { background-color: #2E3440; border: none; }"
-                "QTabBar#mainTabBar::tab { background-color: #2E3440; color: #d8dee9; padding: 8px 14px; border: none; border-right: 1px solid #2E3440; min-width: 120px; }"
+                "QTabBar#mainTabBar::tab { background-color: #2E3440; color: #d8dee9; padding: 8px 30px 8px 14px; border: none; border-right: 1px solid #2E3440; min-width: 120px; }"
                 "QTabBar#mainTabBar::tab:!selected { background-color: #2E3440; }"
                 "QTabBar#mainTabBar::tab:selected { background-color: #2E3440; color: #eceff4; border-top: 2px solid #81a1c1; }"
-                "QTabBar#mainTabBar::tab:hover:!selected { background-color: #2E3440; color: #eceff4; }")
+                "QTabBar#mainTabBar::tab:hover:!selected { background-color: #2E3440; color: #eceff4; }"
+                "QToolButton#tabCloseButton { background: transparent; border: none; border-radius: 9px; padding: 0; }"
+                "QToolButton#tabCloseButton:hover { background-color: rgba(216,222,233,0.16); }")
             : QStringLiteral(
                 "QTabBar#mainTabBar { background-color: #ffffff; border: none; }"
-                "QTabBar#mainTabBar::tab { background-color: #ffffff; color: #7f7f7f; padding: 8px 14px; border: none; border-right: 1px solid #dddddd; min-width: 120px; }"
+                "QTabBar#mainTabBar::tab { background-color: #ffffff; color: #7f7f7f; padding: 8px 30px 8px 14px; border: none; border-right: 1px solid #dddddd; min-width: 120px; }"
                 "QTabBar#mainTabBar::tab:!selected { background-color: #ffffff; }"
                 "QTabBar#mainTabBar::tab:selected { background-color: #ffffff; color: #0e0e0e; border-top: 2px solid #81a1c1; }"
-                "QTabBar#mainTabBar::tab:hover:!selected { background-color: #ffffff; color: #0e0e0e; }"));
+                "QTabBar#mainTabBar::tab:hover:!selected { background-color: #ffffff; color: #0e0e0e; }"
+                "QToolButton#tabCloseButton { background: transparent; border: none; border-radius: 9px; padding: 0; }"
+                "QToolButton#tabCloseButton:hover { background-color: rgba(127,127,127,0.16); }"));
     }
 }
 
@@ -297,7 +306,7 @@ void MainWindow::setupPanes()
     m_fileExplorer = new FileExplorerPane(this);
     m_tabWidget = new QTabWidget(this);
     m_tabWidget->setObjectName("mainTabs");
-    m_tabWidget->setTabsClosable(true);
+    m_tabWidget->setTabsClosable(false);
     m_tabWidget->setMovable(true);
     m_tabWidget->setDocumentMode(false);
     m_tabWidget->tabBar()->setObjectName("mainTabBar");
@@ -405,6 +414,26 @@ void MainWindow::updateTabTitle(NoteTab *tab)
     m_tabWidget->setTabText(index, title);
 }
 
+void MainWindow::installTabCloseButton(int index, QWidget *page)
+{
+    QToolButton *button = new QToolButton(m_tabWidget->tabBar());
+    button->setObjectName("tabCloseButton");
+    button->setAutoRaise(true);
+    button->setCursor(Qt::ArrowCursor);
+    button->setIcon(QIcon(":/icons/tab-close.svg"));
+    button->setIconSize(QSize(15, 15));
+    button->setFixedSize(18, 18);
+    button->setToolTip(tr("关闭"));
+
+    connect(button, &QToolButton::clicked, this, [this, page]() {
+        int currentIndex = m_tabWidget->indexOf(page);
+        if (currentIndex >= 0)
+            onTabCloseRequested(currentIndex);
+    });
+
+    m_tabWidget->tabBar()->setTabButton(index, QTabBar::RightSide, button);
+}
+
 bool MainWindow::openFileInTab(const QString &path)
 {
     if (m_tabsByPath.contains(path)) {
@@ -468,6 +497,7 @@ bool MainWindow::openFileInTab(const QString &path)
     });
 
     int index = m_tabWidget->addTab(tab->page, QFileInfo(path).fileName());
+    installTabCloseButton(index, tab->page);
     m_tabsByPath.insert(path, tab);
     m_tabWidget->setCurrentIndex(index);
     m_tabWidget->setTabBarAutoHide(false);
@@ -1048,6 +1078,7 @@ void MainWindow::ensureReviewTimelineTab()
     timelineLayout->addWidget(m_reviewTimeline);
 
     int index = m_tabWidget->addTab(m_reviewTimelinePage, tr("复习时间轴"));
+    installTabCloseButton(index, m_reviewTimelinePage);
     m_tabWidget->setCurrentIndex(index);
 
     connect(m_reviewTimeline, &ReviewTimelinePane::noteDropped,
@@ -1125,6 +1156,7 @@ void MainWindow::ensureGraphTab()
     graphLayout->addWidget(m_graphPane);
 
     int index = m_tabWidget->addTab(m_graphPage, tr("知识图谱"));
+    installTabCloseButton(index, m_graphPage);
     m_tabWidget->setCurrentIndex(index);
 
     connect(m_graphPane, &GraphPane::noteOpenRequested, this, [this](const QString &filePath) {

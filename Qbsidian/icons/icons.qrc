@@ -7,5 +7,6 @@
         <file>graph.svg</file>
         <file>trash.svg</file>
         <file>save.svg</file>
+        <file>tab-close.svg</file>
     </qresource>
 </RCC>
