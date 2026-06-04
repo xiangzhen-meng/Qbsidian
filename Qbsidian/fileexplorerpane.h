@@ -84,6 +84,7 @@ signals:
     void folderReviewStrategyRequested(const QString &absolutePath, bool fixedInterval);
     void practiceRequested();
     void graphRequested();
+    void aiAssistantRequested();
     void renameRequested(const QString &absolutePath, const QString &newName);
 
 private slots:
@@ -102,6 +103,7 @@ private:
     QPushButton *m_reviewButton;
     QPushButton *m_practiceButton;
     QPushButton *m_graphButton;
+    QPushButton *m_aiButton;
     QTreeView *m_treeView;
     QListWidget *m_searchResults;
     QFileSystemModel *m_model;

@@ -176,6 +176,7 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     , m_reviewButton(nullptr)
     , m_practiceButton(nullptr)
     , m_graphButton(nullptr)
+    , m_aiButton(nullptr)
     , m_treeView(nullptr)
     , m_searchResults(nullptr)
     , m_model(nullptr)
@@ -235,11 +236,11 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     QWidget *toolbar = new QWidget(this);
     QHBoxLayout *toolbarLayout = new QHBoxLayout(toolbar);
     toolbarLayout->setContentsMargins(4, 4, 4, 4);
-    toolbarLayout->setSpacing(4);
+    toolbarLayout->setSpacing(6);
 
     QPushButton *btnNewNote = new QPushButton(toolbar);
     QPushButton *btnNewFolder = new QPushButton(toolbar);
-    btnNewNote->setFixedSize(20, 20);
+    btnNewNote->setFixedSize(30, 30);
     btnNewFolder->setFixedSize(30, 30);
     btnNewNote->setIcon(QIcon(":/icons/new-file.svg"));
     btnNewFolder->setIcon(QIcon(":/icons/new-folder.svg"));
@@ -255,7 +256,7 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     toolbarLayout->addWidget(btnNewFolder);
 
     m_graphButton = new QPushButton(toolbar);
-    m_graphButton->setFixedSize(20, 20);
+    m_graphButton->setFixedSize(30, 30);
     m_graphButton->setIcon(QIcon(":/icons/graph.svg"));
     m_graphButton->setIconSize(QSize(20, 20));
     m_graphButton->setToolTip(tr("知识图谱"));
@@ -263,7 +264,16 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     m_graphButton->setStyleSheet("background: transparent; border: none;");
     toolbarLayout->addWidget(m_graphButton);
 
+    m_aiButton = new QPushButton(toolbar);
+    m_aiButton->setFixedSize(30, 30);
+    m_aiButton->setIcon(QIcon(":/icons/ai-toolbar.svg"));
+    m_aiButton->setIconSize(QSize(20, 20));
+    m_aiButton->setToolTip(tr("AI 助教"));
+    m_aiButton->setFlat(true);
+    m_aiButton->setStyleSheet("background: transparent; border: none;");
+    toolbarLayout->addWidget(m_aiButton);
     toolbarLayout->addStretch();
+
     filesLayout->addWidget(toolbar);
 
     m_treeView = new QTreeView(this);
@@ -381,6 +391,9 @@ FileExplorerPane::FileExplorerPane(QWidget *parent)
     });
     connect(m_graphButton, &QPushButton::clicked, this, [this]() {
         emit graphRequested();
+    });
+    connect(m_aiButton, &QPushButton::clicked, this, [this]() {
+        emit aiAssistantRequested();
     });
 
     new AutoHideScrollAreaFilter(m_treeView, this);

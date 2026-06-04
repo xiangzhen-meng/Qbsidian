@@ -6,6 +6,8 @@
 #include "reviewtimelinepane.h"
 #include "practicedialog.h"
 #include "graphpane.h"
+#include "aiagent.h"
+#include "aiassistantpane.h"
 #include "notemanager.h"
 #include "ReviewManager.h"
 
@@ -37,6 +39,7 @@
 #include <QLineEdit>
 #include <QCheckBox>
 #include <QHBoxLayout>
+#include <QInputDialog>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -47,23 +50,30 @@ MainWindow::MainWindow(QWidget *parent)
     , m_reviewTimelinePage(nullptr)
     , m_graphPane(nullptr)
     , m_graphPage(nullptr)
+    , m_aiAgent(nullptr)
+    , m_aiAssistantPane(nullptr)
     , m_noteManager(nullptr)
     , m_reviewManager(nullptr)
     , m_noteManagerHadError(false)
     , m_themeMode(ThemeMode::Light)
+    , m_aiPendingAction(AiPendingAction::None)
 {
     ui->setupUi(this);
     showMaximized();
 
     setupPanes();
     setupMenuBar();
-    connectSignals();
 
     m_noteManager = new NoteManager(this);
     connect(m_noteManager, &NoteManager::errorOccurred,
             this, &MainWindow::onNoteManagerError);
 
     m_reviewManager = new ReviewManager;
+    m_aiAgent = new AIAgent(this);
+    QSettings aiSettings("Qbsidian", "Qbsidian");
+    m_aiAgent->setApiKey(aiSettings.value("ai/deepseekApiKey").toString());
+
+    connectSignals();
 
     m_fileExplorer->setNoteManager(m_noteManager);
 
@@ -271,6 +281,8 @@ void MainWindow::applyContentTheme()
         m_reviewTimeline->setDarkMode(dark);
     if (m_graphPane)
         m_graphPane->setDarkMode(dark);
+    if (m_aiAssistantPane)
+        m_aiAssistantPane->setDarkMode(dark);
     for (NoteTab *tab : m_tabsByPath) {
         tab->preview->setDarkMode(dark);
         tab->preview->showHtml(tab->editor->toPlainText());
@@ -304,6 +316,7 @@ void MainWindow::setupPanes()
 
     m_fileExplorer = new FileExplorerPane(this);
     m_tabWidget = new QTabWidget(this);
+    m_aiAssistantPane = new AIAssistantPane(this);
     m_tabWidget->setObjectName("mainTabs");
     m_tabWidget->setTabsClosable(false);
     m_tabWidget->setMovable(true);
@@ -315,10 +328,13 @@ void MainWindow::setupPanes()
 
     m_splitter->addWidget(m_fileExplorer);
     m_splitter->addWidget(m_tabWidget);
+    m_splitter->addWidget(m_aiAssistantPane);
 
     m_splitter->setStretchFactor(0, 1);
     m_splitter->setStretchFactor(1, 7);
-    m_splitter->setSizes({220, 1200});
+    m_splitter->setStretchFactor(2, 2);
+    m_aiAssistantPane->setVisible(false);
+    m_splitter->setSizes({220, 1200, 0});
 }
 
 void MainWindow::setupMenuBar()
@@ -354,9 +370,31 @@ void MainWindow::connectSignals()
     connect(m_fileExplorer, &FileExplorerPane::practiceRequested,
             this, &MainWindow::onPracticeRequested);
     connect(m_fileExplorer, &FileExplorerPane::graphRequested,
-            this, &MainWindow::onGraphRequested);
+             this, &MainWindow::onGraphRequested);
+    connect(m_fileExplorer, &FileExplorerPane::aiAssistantRequested,
+            this, &MainWindow::onAiAssistantRequested);
     connect(m_fileExplorer, &FileExplorerPane::renameRequested,
-            this, &MainWindow::onRenameRequested);
+             this, &MainWindow::onRenameRequested);
+
+    connect(m_aiAssistantPane, &AIAssistantPane::closeRequested, this, [this]() {
+        showAiAssistant(false);
+    });
+    connect(m_aiAssistantPane, &AIAssistantPane::questionSubmitted,
+            this, &MainWindow::onAiQuestionSubmitted);
+    connect(m_aiAssistantPane, &AIAssistantPane::settingsRequested,
+            this, &MainWindow::onAiSettingsRequested);
+    connect(m_aiAssistantPane, &AIAssistantPane::summarizeRequested,
+            this, &MainWindow::onAiSummaryRequested);
+    connect(m_aiAssistantPane, &AIAssistantPane::quizRequested,
+            this, &MainWindow::onAiQuizRequested);
+    connect(m_aiAgent, &AIAgent::requestStarted, this, [this]() {
+        m_aiAssistantPane->setBusy(true);
+        m_aiAssistantPane->appendSystemMessage(tr("AI 正在思考..."));
+    });
+    connect(m_aiAgent, &AIAgent::responseReceived,
+            this, &MainWindow::onAiResponseReceived);
+    connect(m_aiAgent, &AIAgent::errorOccurred,
+            this, &MainWindow::onAiErrorOccurred);
 
     connect(m_tabWidget, &QTabWidget::tabCloseRequested,
             this, &MainWindow::onTabCloseRequested);
@@ -1210,6 +1248,185 @@ void MainWindow::onGraphRequested()
 {
     ensureGraphTab();
     m_tabWidget->setCurrentWidget(m_graphPage);
+}
+
+void MainWindow::onAiAssistantRequested()
+{
+    showAiAssistant(!m_aiAssistantPane->isVisible());
+}
+
+void MainWindow::showAiAssistant(bool visible)
+{
+    m_aiAssistantPane->setVisible(visible);
+    if (visible)
+        m_splitter->setSizes({220, 780, 440});
+    else
+        m_splitter->setSizes({220, 1200, 0});
+}
+
+bool MainWindow::ensureAiApiKey()
+{
+    QSettings settings("Qbsidian", "Qbsidian");
+    QString key = settings.value("ai/deepseekApiKey").toString();
+    if (!key.trimmed().isEmpty()) {
+        m_aiAgent->setApiKey(key.trimmed());
+        return true;
+    }
+
+    return promptAiApiKey(false);
+}
+
+bool MainWindow::promptAiApiKey(bool forceUpdate)
+{
+    bool ok = false;
+    QString title = forceUpdate ? tr("重新设置 DeepSeek API Key") : tr("设置 DeepSeek API Key");
+    QString input = QInputDialog::getText(this, title,
+        tr("请输入 DeepSeek API Key:"), QLineEdit::Password, QString(), &ok);
+    input = input.trimmed();
+    if (!ok || input.isEmpty())
+        return false;
+
+    QSettings settings("Qbsidian", "Qbsidian");
+    settings.setValue("ai/deepseekApiKey", input);
+    m_aiAgent->setApiKey(input);
+    return true;
+}
+
+void MainWindow::onAiSettingsRequested()
+{
+    showAiAssistant(true);
+    if (promptAiApiKey(true))
+        m_aiAssistantPane->appendSystemMessage(tr("API Key 已更新"));
+}
+
+QString MainWindow::normalizeSelectedText(QString text) const
+{
+    text.replace(QChar::ParagraphSeparator, '\n');
+    text.replace(QChar::LineSeparator, '\n');
+    return text.trimmed();
+}
+
+QString MainWindow::selectedNoteText() const
+{
+    NoteTab *tab = currentTab();
+    if (!tab)
+        return QString();
+
+    QString selected = normalizeSelectedText(tab->editor->textCursor().selectedText());
+    if (!selected.isEmpty())
+        return selected;
+
+    return normalizeSelectedText(tab->preview->textCursor().selectedText());
+}
+
+void MainWindow::onAiQuestionSubmitted(const QString &text)
+{
+    showAiAssistant(true);
+    if (!ensureAiApiKey())
+        return;
+
+    QString selected = selectedNoteText();
+    bool quoted = !selected.isEmpty();
+    m_aiAssistantPane->appendUserMessage(text, quoted);
+    m_aiPendingAction = AiPendingAction::Chat;
+
+    if (quoted) {
+        QString prompt = tr("以下是我选中的笔记内容：\n%1\n\n我的问题是：\n%2").arg(selected, text);
+        m_aiAgent->askQuestion(prompt);
+    } else {
+        m_aiAgent->askQuestion(text);
+    }
+}
+
+void MainWindow::onAiSummaryRequested()
+{
+    showAiAssistant(true);
+    QString selected = selectedNoteText();
+    if (selected.isEmpty()) {
+        QMessageBox::information(this, tr("提示"), tr("请先在编辑区或预览区选中要总结的内容。"));
+        return;
+    }
+    if (!ensureAiApiKey())
+        return;
+
+    m_aiAssistantPane->appendUserMessage(tr("总结我选中的内容"), true);
+    m_aiPendingAction = AiPendingAction::Summary;
+    m_aiAgent->summarizeNote(selected);
+}
+
+void MainWindow::onAiQuizRequested()
+{
+    showAiAssistant(true);
+    if (!currentTab()) {
+        QMessageBox::information(this, tr("提示"), tr("请先打开一篇笔记。"));
+        return;
+    }
+
+    QString selected = selectedNoteText();
+    if (selected.isEmpty()) {
+        QMessageBox::information(this, tr("提示"), tr("请先在编辑区或预览区选中要出题的内容。"));
+        return;
+    }
+    if (!ensureAiApiKey())
+        return;
+
+    m_aiAssistantPane->appendUserMessage(tr("根据选中内容给我出题"), true);
+    m_aiPendingAction = AiPendingAction::Quiz;
+    m_aiAgent->generateQuiz(selected);
+}
+
+void MainWindow::onAiResponseReceived(const QString &replyText)
+{
+    m_aiAssistantPane->setBusy(false);
+
+    if (m_aiPendingAction == AiPendingAction::Quiz) {
+        appendQuizToCurrentNote(replyText);
+        m_aiAssistantPane->appendSystemMessage(tr("已将题目加入当前笔记末尾"));
+    } else {
+        m_aiAssistantPane->appendAiMessage(replyText);
+    }
+
+    m_aiPendingAction = AiPendingAction::None;
+}
+
+void MainWindow::onAiErrorOccurred(const QString &errorMsg)
+{
+    m_aiAssistantPane->setBusy(false);
+    m_aiPendingAction = AiPendingAction::None;
+    QMessageBox::warning(this, tr("AI 助手出错了"), errorMsg);
+}
+
+void MainWindow::appendQuizToCurrentNote(const QString &quizText)
+{
+    NoteTab *tab = currentTab();
+    if (!tab)
+        return;
+
+    QStringList quizLines;
+    const QStringList lines = quizText.split('\n');
+    for (QString line : lines) {
+        line = line.trimmed();
+        if (line.startsWith(QStringLiteral("#题库/")) && line.contains(QStringLiteral("::")))
+            quizLines.append(line);
+    }
+
+    QString contentToAppend = quizLines.isEmpty() ? quizText.trimmed() : quizLines.join('\n');
+    if (contentToAppend.isEmpty())
+        return;
+
+    QString content = tab->editor->toPlainText();
+    if (!content.endsWith('\n'))
+        content += '\n';
+    content += '\n' + contentToAppend + '\n';
+    tab->editor->setPlainText(content);
+    QTextCursor cursor = tab->editor->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    tab->editor->setTextCursor(cursor);
+    tab->preview->showHtml(content);
+    tab->isModified = true;
+    updateTabTitle(tab);
+    updateTitle();
+    ui->statusbar->showMessage(tr("已将题目加入当前笔记末尾"));
 }
 
 void MainWindow::ensureGraphTab()

@@ -31,7 +31,7 @@ void AIAgent::summarizeNote(const QString &selectedText)
 
 void AIAgent::generateQuiz(const QString &selectedText)
 {
-    QString systemPrompt = "你是一个严厉的老师。请根据用户发来的知识点，生成 3 道测试题（单选或问答形式均可），并附带标准答案解析。";
+    QString systemPrompt = "你是一个严厉的老师。请根据用户发来的知识点生成 3 道测试题。必须只输出 3 行 Markdown，每行格式严格为：#题库/AI 问题::答案解析。不要输出编号、解释、空行或其他文字。";
     sendPostRequest(systemPrompt, selectedText);
 }
 

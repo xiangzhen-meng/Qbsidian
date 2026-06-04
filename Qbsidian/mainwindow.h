@@ -11,6 +11,8 @@ class EditorPane;
 class PreviewPane;
 class ReviewTimelinePane;
 class GraphPane;
+class AIAgent;
+class AIAssistantPane;
 class NoteManager;
 class ReviewManager;
 class QSplitter;
@@ -32,6 +34,8 @@ public:
     enum class ThemeMode { Light, Dark };
 
 private:
+    enum class AiPendingAction { None, Chat, Summary, Quiz };
+
     struct NoteTab
     {
         QWidget *page;
@@ -77,6 +81,13 @@ private slots:
     void onFolderReviewStrategyRequested(const QString &absolutePath, bool fixedInterval);
     void onPracticeRequested();
     void onGraphRequested();
+    void onAiAssistantRequested();
+    void onAiSettingsRequested();
+    void onAiQuestionSubmitted(const QString &text);
+    void onAiSummaryRequested();
+    void onAiQuizRequested();
+    void onAiResponseReceived(const QString &replyText);
+    void onAiErrorOccurred(const QString &errorMsg);
     void onRenameRequested(const QString &absolutePath, const QString &newName);
 
 private:
@@ -102,6 +113,12 @@ private:
     QString buildDarkQss() const;
     void ensureReviewTimelineTab();
     void ensureGraphTab();
+    void showAiAssistant(bool visible);
+    bool ensureAiApiKey();
+    bool promptAiApiKey(bool forceUpdate);
+    QString selectedNoteText() const;
+    QString normalizeSelectedText(QString text) const;
+    void appendQuizToCurrentNote(const QString &quizText);
     void refreshReviewTimeline();
     QString promptFixedIntervalStrategy();
     void applyReviewStrategy(const QString &noteId, const QString &title, const QString &strategyId);
@@ -114,6 +131,8 @@ private:
     QWidget *m_reviewTimelinePage;
     GraphPane *m_graphPane;
     QWidget *m_graphPage;
+    AIAgent *m_aiAgent;
+    AIAssistantPane *m_aiAssistantPane;
     NoteManager *m_noteManager;
     ReviewManager *m_reviewManager;
 
@@ -121,6 +140,7 @@ private:
     QString m_vaultPath;
     bool m_noteManagerHadError;
     ThemeMode m_themeMode;
+    AiPendingAction m_aiPendingAction;
 };
 
 #endif // MAINWINDOW_H
