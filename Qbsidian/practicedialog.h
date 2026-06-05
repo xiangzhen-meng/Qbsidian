@@ -8,6 +8,7 @@
 class QTextBrowser;
 class QPushButton;
 class QLabel;
+class QMenu;
 
 class PracticeDialog : public QDialog
 {
@@ -20,11 +21,13 @@ private slots:
     void onShowAnswer();
     void onKnown();
     void onUnknown();
+    void onSelectPreset();
     void onSelectFolder();
 
 private:
     void showCurrentQuestion();
     void advanceQuestion();
+    bool loadPresetQuestions(bool showEmptyMessage);
     bool loadQuestionsFromDirectory(const QString &directory, bool showEmptyMessage);
     void applyShuffleAndLimit(QList<ExtractedQuestion> &questions);
     QString buildStyleSheet() const;
@@ -41,6 +44,7 @@ private:
 
     QTextBrowser *m_browser;
     QPushButton *m_selectFolderButton;
+    QMenu *m_questionBankMenu;
     QPushButton *m_showAnswerButton;
     QPushButton *m_knownButton;
     QPushButton *m_unknownButton;
