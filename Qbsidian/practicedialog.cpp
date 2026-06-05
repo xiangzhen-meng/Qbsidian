@@ -12,6 +12,7 @@
 #include <QMessageBox>
 #include <QApplication>
 #include <QFileDialog>
+#include <QMenu>
 #include <QDir>
 #include <algorithm>
 #include <random>
@@ -22,6 +23,7 @@ PracticeDialog::PracticeDialog(const QString &vaultPath, bool darkMode, QWidget 
     , m_currentIndex(0)
     , m_answerVisible(false)
     , m_darkMode(darkMode)
+    , m_questionBankMenu(nullptr)
 {
     setWindowTitle(tr("抽查练习"));
     resize(760, 560);
@@ -46,10 +48,15 @@ PracticeDialog::PracticeDialog(const QString &vaultPath, bool darkMode, QWidget 
     m_tagLabel = new QLabel(this);
     m_tagLabel->setObjectName("tagLabel");
 
-    m_selectFolderButton = new QPushButton(tr("选择题库"), this);
+    m_selectFolderButton = new QPushButton(tr("选择题库 ▾"), this);
     m_selectFolderButton->setObjectName("selectFolderButton");
     m_selectFolderButton->setCursor(Qt::PointingHandCursor);
     m_selectFolderButton->setFlat(true);
+
+    m_questionBankMenu = new QMenu(m_selectFolderButton);
+    QAction *presetAction = m_questionBankMenu->addAction(tr("默认题库"));
+    QAction *folderAction = m_questionBankMenu->addAction(tr("选择文件夹..."));
+    m_selectFolderButton->setMenu(m_questionBankMenu);
 
     infoLayout->addWidget(m_progressLabel);
     infoLayout->addStretch();
@@ -106,11 +113,12 @@ PracticeDialog::PracticeDialog(const QString &vaultPath, bool darkMode, QWidget 
     connect(m_showAnswerButton, &QPushButton::clicked, this, &PracticeDialog::onShowAnswer);
     connect(m_knownButton, &QPushButton::clicked, this, &PracticeDialog::onKnown);
     connect(m_unknownButton, &QPushButton::clicked, this, &PracticeDialog::onUnknown);
-    connect(m_selectFolderButton, &QPushButton::clicked, this, &PracticeDialog::onSelectFolder);
+    connect(presetAction, &QAction::triggered, this, &PracticeDialog::onSelectPreset);
+    connect(folderAction, &QAction::triggered, this, &PracticeDialog::onSelectFolder);
 
     setStyleSheet(buildStyleSheet());
 
-    loadQuestionsFromDirectory(m_vaultPath, false);
+    loadPresetQuestions(false);
 }
 
 void PracticeDialog::showCurrentQuestion()
@@ -170,6 +178,11 @@ void PracticeDialog::onUnknown()
     advanceQuestion();
 }
 
+void PracticeDialog::onSelectPreset()
+{
+    loadPresetQuestions(true);
+}
+
 void PracticeDialog::advanceQuestion()
 {
     if (!m_answerVisible)
@@ -201,15 +214,40 @@ void PracticeDialog::onSelectFolder()
     loadQuestionsFromDirectory(dir, true);
 }
 
+bool PracticeDialog::loadPresetQuestions(bool showEmptyMessage)
+{
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+
+    QuestionExtractor extractor;
+    QList<ExtractedQuestion> allQuestions = extractor.extractFromPreset();
+
+    QApplication::restoreOverrideCursor();
+
+    if (allQuestions.isEmpty()) {
+        if (showEmptyMessage)
+            QMessageBox::information(this, tr("提示"), tr("默认题库为空。"));
+        else
+            QMessageBox::information(this, tr("提示"), tr("当前题库为空。"));
+        return false;
+    }
+
+    applyShuffleAndLimit(allQuestions);
+
+    m_currentDirectory.clear();
+    m_questions = allQuestions;
+    m_currentIndex = 0;
+    m_answerVisible = false;
+    showCurrentQuestion();
+
+    return true;
+}
+
 bool PracticeDialog::loadQuestionsFromDirectory(const QString &directory, bool showEmptyMessage)
 {
     QApplication::setOverrideCursor(Qt::WaitCursor);
 
     QuestionExtractor extractor;
     QList<ExtractedQuestion> allQuestions;
-
-    if (directory == m_vaultPath)
-        allQuestions.append(extractor.extractFromPreset());
 
     allQuestions.append(extractor.extractAllFromDirectory(directory));
 
@@ -231,8 +269,6 @@ bool PracticeDialog::loadQuestionsFromDirectory(const QString &directory, bool s
     m_answerVisible = false;
     showCurrentQuestion();
 
-    m_selectFolderButton->setVisible(directory == m_vaultPath);
-
     return true;
 }
 
@@ -244,8 +280,8 @@ void PracticeDialog::applyShuffleAndLimit(QList<ExtractedQuestion> &questions)
         std::shuffle(questions.begin(), questions.end(), g);
     }
 
-    if (questions.size() >= 6)
-        questions = questions.mid(0, 6);
+    if (questions.size() > 10)
+        questions = questions.mid(0, 10);
 }
 
 QString PracticeDialog::renderQuestionHtml(const ExtractedQuestion &question, bool showAnswer) const
@@ -297,6 +333,7 @@ QString PracticeDialog::buildStyleSheet() const
             "#sourceLabel{color:#d8dee9;font-size:13px;}"
             "#tagLabel{color:#81a1c1;font-size:12px;border:1px solid #81a1c1;border-radius:10px;padding:2px 10px;}"
             "#selectFolderButton{color:#88C0D0;font-size:12px;text-decoration:underline;}"
+            "#selectFolderButton::menu-indicator{image:none;width:0px;}"
             "#bottomBar{background-color:#3B4252;}"
         );
     } else {
@@ -324,6 +361,7 @@ QString PracticeDialog::buildStyleSheet() const
             "#sourceLabel{color:#0e0e0e;font-size:13px;}"
             "#tagLabel{color:#81a1c1;font-size:12px;border:1px solid #81a1c1;border-radius:10px;padding:2px 10px;}"
             "#selectFolderButton{color:#5e81ac;font-size:12px;text-decoration:underline;}"
+            "#selectFolderButton::menu-indicator{image:none;width:0px;}"
             "#bottomBar{background-color:#fcfcfc;}"
         );
     }
