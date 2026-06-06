@@ -63,6 +63,7 @@ set(PROJECT_SOURCES
         ${TS_FILES}
         icons/icons.qrc
         resourseQA.qrc
+        logo.rc
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
