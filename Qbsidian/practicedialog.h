@@ -21,13 +21,12 @@ private slots:
     void onShowAnswer();
     void onKnown();
     void onUnknown();
-    void onSelectPreset();
     void onSelectFolder();
 
 private:
     void showCurrentQuestion();
     void advanceQuestion();
-    bool loadPresetQuestions(bool showEmptyMessage);
+    bool loadPresetQuestions(const QString &resourcePath, bool showEmptyMessage);
     bool loadQuestionsFromDirectory(const QString &directory, bool showEmptyMessage);
     void applyShuffleAndLimit(QList<ExtractedQuestion> &questions);
     QString buildStyleSheet() const;
