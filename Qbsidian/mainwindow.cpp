@@ -881,8 +881,8 @@ void MainWindow::onTimelineRememberedRequested(const ReviewPlanItem &item)
         return;
 
     if (item.source == ReviewPlanItemSource::ManualSchedule) {
-        m_reviewManager->removeManualSchedule(item.id);
-        ui->statusbar->showMessage(tr("已完成手动复习: %1").arg(info.completeBaseName()));
+        onTimelineManualDeleteRequested(item);
+        return;
     } else {
         m_reviewManager->processReviewFeedback(item.noteId, true);
         ui->statusbar->showMessage(tr("已按当前策略安排下次复习: %1").arg(info.completeBaseName()));
@@ -900,10 +900,8 @@ void MainWindow::onTimelineForgottenRequested(const ReviewPlanItem &item)
         return;
 
     if (item.source == ReviewPlanItemSource::ManualSchedule) {
-        m_reviewManager->removeManualSchedule(item.id);
-        m_reviewManager->addManualReviewSchedule(item.noteId, info.completeBaseName(),
-            QDateTime(QDate::currentDate().addDays(1), QTime(9, 0)));
-        ui->statusbar->showMessage(tr("已安排明天再次手动复习: %1").arg(info.completeBaseName()));
+        onTimelineManualDeleteRequested(item);
+        return;
     } else {
         m_reviewManager->processReviewFeedback(item.noteId, false);
         ui->statusbar->showMessage(tr("已按当前策略重新安排复习: %1").arg(info.completeBaseName()));

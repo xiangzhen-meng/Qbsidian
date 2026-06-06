@@ -497,8 +497,8 @@ void ReviewTimelinePane::updateReviewButtons()
     bool isStrategy = hasSelection && m_selectedItem.source == ReviewPlanItemSource::Strategy;
     bool isManual = hasSelection && m_selectedItem.source == ReviewPlanItemSource::ManualSchedule;
     bool isToday = hasSelection && m_selectedItem.reviewTime.date() == QDate::currentDate();
-    m_rememberButton->setEnabled(isStrategy && isToday);
-    m_forgetButton->setEnabled(isStrategy && isToday);
+    m_rememberButton->setEnabled((isStrategy && isToday) || isManual);
+    m_forgetButton->setEnabled((isStrategy && isToday) || isManual);
     m_deleteButton->setEnabled(isStrategy || isManual);
     m_deleteButton->setText(tr("删除当天"));
     m_strategyButton->setEnabled(isStrategy);
