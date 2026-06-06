@@ -54,7 +54,8 @@ PracticeDialog::PracticeDialog(const QString &vaultPath, bool darkMode, QWidget 
     m_selectFolderButton->setFlat(true);
 
     m_questionBankMenu = new QMenu(m_selectFolderButton);
-    QAction *presetAction = m_questionBankMenu->addAction(tr("默认题库"));
+    QAction *presetPythonAction = m_questionBankMenu->addAction(tr("Python 默认题库"));
+    QAction *presetMathAction = m_questionBankMenu->addAction(tr("数学默认题库"));
     QAction *folderAction = m_questionBankMenu->addAction(tr("选择文件夹..."));
     m_selectFolderButton->setMenu(m_questionBankMenu);
 
@@ -113,12 +114,17 @@ PracticeDialog::PracticeDialog(const QString &vaultPath, bool darkMode, QWidget 
     connect(m_showAnswerButton, &QPushButton::clicked, this, &PracticeDialog::onShowAnswer);
     connect(m_knownButton, &QPushButton::clicked, this, &PracticeDialog::onKnown);
     connect(m_unknownButton, &QPushButton::clicked, this, &PracticeDialog::onUnknown);
-    connect(presetAction, &QAction::triggered, this, &PracticeDialog::onSelectPreset);
+    connect(presetPythonAction, &QAction::triggered, this, [this]() {
+        loadPresetQuestions(QStringLiteral(":/presets/preset_cs.json"), true);
+    });
+    connect(presetMathAction, &QAction::triggered, this, [this]() {
+        loadPresetQuestions(QStringLiteral(":/presets/preset_math.json"), true);
+    });
     connect(folderAction, &QAction::triggered, this, &PracticeDialog::onSelectFolder);
 
     setStyleSheet(buildStyleSheet());
 
-    loadPresetQuestions(false);
+    loadPresetQuestions(QStringLiteral(":/presets/preset_cs.json"), false);
 }
 
 void PracticeDialog::showCurrentQuestion()
@@ -178,11 +184,6 @@ void PracticeDialog::onUnknown()
     advanceQuestion();
 }
 
-void PracticeDialog::onSelectPreset()
-{
-    loadPresetQuestions(true);
-}
-
 void PracticeDialog::advanceQuestion()
 {
     if (!m_answerVisible)
@@ -214,12 +215,12 @@ void PracticeDialog::onSelectFolder()
     loadQuestionsFromDirectory(dir, true);
 }
 
-bool PracticeDialog::loadPresetQuestions(bool showEmptyMessage)
+bool PracticeDialog::loadPresetQuestions(const QString &resourcePath, bool showEmptyMessage)
 {
     QApplication::setOverrideCursor(Qt::WaitCursor);
 
     QuestionExtractor extractor;
-    QList<ExtractedQuestion> allQuestions = extractor.extractFromPreset();
+    QList<ExtractedQuestion> allQuestions = extractor.extractFromPreset(resourcePath);
 
     QApplication::restoreOverrideCursor();
 
