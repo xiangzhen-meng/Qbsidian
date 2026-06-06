@@ -34,5 +34,35 @@
     "subject": "Python",
     "q": "【对应OJ: 筛选商品】\n如果有一个包含大量商品字典的列表，如何用最 Pythonic 的方式，将价格大于 100 的商品筛选出来？（写出一种方法即可）",
     "a": "最推荐的方法是使用 **列表推导式 (List Comprehension)**。\n\n**代码示例**：\n```python\nexpensive_items = [item for item in products if item['price'] > 100]\n```\n\n另外一种做法是结合 `filter()` 和 `lambda`：\n```python\nexpensive_items = list(filter(lambda x: x['price'] > 100, products))\n```\n但列表推导式的可读性和执行效率通常更好。"
-  }
+  },
+  {
+      "id": "py_007",
+      "subject": "Python",
+      "q": "【对应OJ: 矩阵转置与并行遍历】\n在 Python 中，如果需要将一个二维矩阵（嵌套列表）进行转置，或者需要同时遍历多个等长的列表，最优雅的内置函数是哪一个？",
+      "a": "最推荐使用 **`zip()`** 函数。\n\n**代码示例**：\n```python\nmatrix = [[1, 2, 3], [4, 5, 6]]\n# 矩阵转置：配合星号(*)解包操作\ntransposed = list(zip(*matrix))\nprint(transposed)  # 输出: [(1, 4), (2, 5), (3, 6)]\n\n# 并行遍历：\nnames = ['Alice', 'Bob']\nscores = [95, 88]\nfor name, score in zip(names, scores):\n    print(f\"{name}: {score}\")\n```\n`zip()` 用 C 语言实现，避免了手动维护索引 `i`，代码更具可读性。"
+    },
+    {
+      "id": "py_008",
+      "subject": "Python",
+      "q": "【对应OJ: 复杂嵌套对象的拷贝】\n当我们在 Python 中使用赋值语句 `a = b` 或者 `copy` 模块时，浅拷贝（Shallow Copy）和深拷贝（Deep Copy）的核心区别是什么？",
+      "a": "1. **浅拷贝（如 `copy.copy()` 或切片 `[:]`）**：只拷贝父对象，不会拷贝对象内部的子对象。如果子对象是可变的（如列表中的列表），修改新对象的子元素会影响原对象。\n2. **深拷贝（`copy.deepcopy()`）**：递归地拷贝对象及其包含的所有子对象。新对象和原对象完全独立，修改任何层级的数据互不影响。\n\n**建议**：在处理包含多维列表或嵌套字典的数据时，为防数据污染，应使用深拷贝。"
+    },
+    {
+      "id": "py_009",
+      "subject": "Python",
+      "q": "【对应OJ: 动态参数传递】\n在设计一个允许接收任意数量参数的函数时，Python 函数定义中的 `*args` 和 `**kwargs` 分别代表什么含义？它们的类型分别是什么？",
+      "a": "1. **`*args`**：用于接收任意数量的**位置参数**（Positional Arguments），在函数内部它会被打包成一个**元组（Tuple）**。\n2. **`**kwargs`**：用于接收任意数量的**关键字参数**（Keyword Arguments），在函数内部它会被打包成一个**字典（Dictionary）**。\n\n**代码示例**：\n```python\ndef func(*args, **kwargs):\n    print(args)    # 例如传入 (1, 2) -> 元组\n    print(kwargs)  # 例如传入 a=3 -> 字典 {'a': 3}\n```"
+    },
+    {
+      "id": "py_010",
+      "subject": "Python",
+      "q": "【对应OJ: 函数耗时统计】\n在不修改原有函数内部代码的前提下，如果想给多个不同的函数统一增加“执行时间统计”或“权限校验”的功能，应该使用 Python 的什么特性？",
+      "a": "应该使用 **装饰器（Decorator）**。\n\n**解析**：\n装饰器本质上是一个高阶函数，它接收一个函数作为参数，并返回一个新的函数。在 Python 中使用 `@` 语法糖可以极大地简化调用。\n\n**代码示例**：\n```python\nimport time\ndef timer(func):\n    def wrapper(*args, **kwargs):\n        start = time.time()\n        result = func(*args, **kwargs)\n        print(f\"耗时: {time.time() - start}\")\n        return result\n    return wrapper\n\n@timer\ndef my_func():\n    pass\n```"
+    },
+    {
+      "id": "py_011",
+      "subject": "Python",
+      "q": "【对应OJ: 鲁棒性输入解析】\n在进行异常处理时，`try...except...else...finally` 结构中，`else` 块和 `finally` 块的执行时机分别是什么？",
+      "a": "1. **`else` 块**：只有在 `try` 块中的代码**没有发生任何异常**时，才会执行 `else` 块。它通常用于存放“必须在成功后才能执行”的逻辑。\n2. **`finally` 块**：**无论是否发生异常**，甚至在 `try` 或 `except` 中有 `return` 语句，`finally` 块都**一定会执行**。它通常用于释放资源，如关闭文件或断开数据库连接。"
+    }
 ]
