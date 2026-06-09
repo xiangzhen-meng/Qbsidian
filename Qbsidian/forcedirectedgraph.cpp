@@ -88,7 +88,7 @@ void ForceDirectedGraph::updatePhysicsStep()
         double dy = nB->y - nA->y;
         double dist = qSqrt(dx * dx + dy * dy) + epsilon;
 
-        double fSpring = m_springK * (dist - m_idealLength*1.5);
+        double fSpring = m_springK * (dist - m_idealLength*2);
         double fx = (dx / dist) * fSpring;
         double fy = (dy / dist) * fSpring;
 
