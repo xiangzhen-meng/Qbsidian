@@ -129,13 +129,20 @@ void GraphPane::rebuildGraphData(const QString &vaultPath)
     QDirIterator it(vaultPath, QStringList() << "*.md", QDir::Files, QDirIterator::Subdirectories);
 
     QMap<QString, QStringList> adjacencyMap;
+
+    QMap<QString, QStringList> folderToNodesMap;
+
     while (it.hasNext()) {
         it.next();
         QFileInfo fileInfo = it.fileInfo();
         QString nodeId = fileInfo.completeBaseName();
         QString absPath = fileInfo.absoluteFilePath();
+
         m_graph->addNode(nodeId);
         m_nodeIdToPath.insert(nodeId, absPath);
+
+        QString parentDir = fileInfo.dir().absolutePath();
+        folderToNodesMap[parentDir].append(nodeId);
 
         QFile file(absPath);
         if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
@@ -160,8 +167,21 @@ void GraphPane::rebuildGraphData(const QString &vaultPath)
             m_graph->addEdge(iter.key(), targetId);
         }
     }
-}
 
+
+    for (auto iter = folderToNodesMap.constBegin(); iter != folderToNodesMap.constEnd(); ++iter) {
+        const QStringList &nodesInSameFolder = iter.value();
+
+        if (nodesInSameFolder.size() < 2) continue;
+
+
+        for (int i = 0; i < nodesInSameFolder.size(); ++i) {
+            for (int j = i + 1; j < nodesInSameFolder.size(); ++j) {
+                m_graph->addHiddenEdge(nodesInSameFolder[i], nodesInSameFolder[j]);
+            }
+        }
+    }
+}
 void GraphPane::rebuildSceneItems()
 {
     m_scene->clear();
