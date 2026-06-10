@@ -1408,7 +1408,7 @@ void MainWindow::appendQuizToCurrentNote(const QString &quizText)
             quizLines.append(line);
     }
 
-    QString contentToAppend = quizLines.isEmpty() ? quizText.trimmed() : quizLines.join('\n');
+    QString contentToAppend = quizLines.isEmpty() ? quizText.trimmed() : quizLines.join(QStringLiteral("\n\n"));
     if (contentToAppend.isEmpty())
         return;
 
